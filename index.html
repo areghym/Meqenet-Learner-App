@@ -3,818 +3,755 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meqenet SEN Learner App</title>
-    
-    <!-- Load Tailwind CSS via CDN -->
+    <title>Meqenet Learner & Management App</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Load React, ReactDOM, and Babel for in-browser JSX compilation -->
-    <!-- Development versions used for simplicity and better debugging -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <!-- Load Firebase SDKs via CDN -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Make Firebase functions available globally for the Babel script
-        window.firebase = {
-            initializeApp,
-            getAuth,
-            signInAnonymously,
-            signInWithCustomToken,
-            getFirestore
-        };
-    </script>
-
-    <!-- Base Styling -->
+    <!-- Phosphor Icons for simple, modern icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
+        body { 
+            font-family: 'Inter', sans-serif; 
+            transition: background-color 0.3s, color 0.3s; 
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
         }
-        /* Custom spinner for loading states */
-        .animate-spin-fast {
-            animation: spin 0.7s linear infinite;
+        .large-touch-target {
+            padding: 1rem;
+            border-radius: 0.75rem;
+            font-weight: bold;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
         }
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+        .section-card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s;
+        }
+        /* High Contrast Mode Styles */
+        body.high-contrast {
+            background-color: black !important;
+            color: white !important;
+        }
+        body.high-contrast .section-card,
+        body.high-contrast .bg-white {
+            background-color: black !important;
+            border: 2px solid yellow !important;
+            color: yellow !important;
+            box-shadow: 0 0 10px yellow !important;
+        }
+        body.high-contrast .text-gray-900 {
+            color: yellow !important;
+        }
+        body.high-contrast button,
+        body.high-contrast a,
+        body.high-contrast input,
+        body.high-contrast select {
+            border: 2px solid white !important;
+            background-color: black !important;
+            color: white !important;
+        }
+        body.high-contrast button:hover {
+            background-color: #333 !important;
+        }
+        body.high-contrast .bg-indigo-600 {
+            background-color: yellow !important;
+            color: black !important;
+            font-weight: bold;
         }
     </style>
 </head>
-<body>
+<body id="app-body" class="bg-gray-100 text-gray-900 min-h-screen">
+    <div class="max-w-4xl mx-auto p-4 md:p-6">
+        <!-- Header -->
+        <header class="text-center mb-6">
+            <h1 id="app-title" class="text-3xl font-extrabold text-indigo-600">Meqenet Learner Hub</h1>
+            <p id="user-display" class="text-sm font-medium text-gray-500 mt-1 truncate">User: Loading...</p>
+        </header>
 
-    <!-- Root container for the React application -->
-    <div id="root"></div>
+        <!-- Navigation Tabs -->
+        <nav class="flex justify-center space-x-2 p-2 bg-white rounded-xl shadow-lg mb-6 sticky top-0 z-10">
+            <button onclick="changeView('lesson')" id="nav-lesson" class="flex items-center space-x-2 large-touch-target bg-indigo-600 text-white shadow-indigo-500/50">
+                <i class="ph ph-book-open text-2xl"></i>
+                <span class="text-lg">Lesson</span>
+            </button>
+            <button onclick="changeView('quiz')" id="nav-quiz" class="flex items-center space-x-2 large-touch-target bg-gray-200 text-gray-700 hover:bg-gray-300">
+                <i class="ph ph-question text-2xl"></i>
+                <span class="text-lg">Quiz</span>
+            </button>
+            <button onclick="changeView('settings')" id="nav-settings" class="flex items-center space-x-2 large-touch-target bg-gray-200 text-gray-700 hover:bg-gray-300">
+                <i class="ph ph-gear text-2xl"></i>
+                <span class="text-lg">Settings</span>
+            </button>
+            <button onclick="changeView('management')" id="nav-management" class="flex items-center space-x-2 large-touch-target bg-gray-200 text-gray-700 hover:bg-gray-300">
+                <i class="ph ph-users text-2xl"></i>
+                <span class="text-lg">Manage</span>
+            </button>
+        </nav>
 
-    <!-- Toast Notification Container -->
-    <div id="toast-container" class="fixed bottom-4 right-4 z-50"></div>
+        <!-- Main Content Area -->
+        <div id="content-container">
+            <!-- Lesson View (Default) -->
+            <section id="view-lesson" class="view-section section-card space-y-4">
+                <h2 class="text-2xl font-bold border-b pb-2 mb-4 text-indigo-600">Literacy Lesson: Alphabet & Numbers</h2>
+                <div class="flex space-x-2 mb-4">
+                    <button onclick="loadModule('literacy')" class="px-4 py-2 rounded-full text-sm font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200">Literacy</button>
+                    <button onclick="loadModule('numeracy')" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300">Numeracy</button>
+                </div>
 
-    <!-- The main application logic goes here, using Babel to handle JSX -->
-    <script type="text/babel">
-        // --- Single-File Icon Definitions (Replacing lucide-react imports for standalone Babel) ---
-        // These are basic SVG components to ensure the component tree compiles and renders correctly.
-        const Icon = ({ children, className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{children}</svg>;
+                <div id="lesson-content" class="text-base leading-relaxed space-y-3">
+                    <!-- Lesson content will be dynamically inserted here -->
+                </div>
 
-        const BookOpen = (props) => <Icon {...props}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></Icon>;
-        const Calculator = (props) => <Icon {...props}><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="13" y2="18"/></Icon>;
-        const Settings = (props) => <Icon {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.72l-.15.1a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73v.18a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.71l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></Icon>;
-        const Volume2 = (props) => <Icon {...props}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></Icon>;
-        const Contrast = (props) => <Icon {...props}><circle cx="12" cy="12" r="10"/><path d="M12 2a5 5 0 0 0-5 5c0 3 2 5 5 5s5-2 5-5A5 5 0 0 0 12 2z"/></Icon>;
-        const Text = (props) => <Icon {...props}><path d="M7 13h10"/><path d="M12 2v20"/><path d="M7 2v20"/><path d="M17 2v20"/></Icon>;
-        const Languages = (props) => <Icon {...props}><path d="M10 2c3.5 0 6 2.5 6 6s-2.5 6-6 6c-3.5 0-6-2.5-6-6s2.5-6 6-6z"/><path d="M15 14l2 2m-2 0l-2-2"/></Icon>;
-        const Home = (props) => <Icon {...props}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></Icon>;
-        const Video = (props) => <Icon {...props}><path d="m22 8-6 4 6 4V8z"/><rect x="2" y="5" width="12" height="14" rx="2"/></Icon>;
-        const Loader2 = (props) => <Icon {...props}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></Icon>;
+                <!-- Language Selector -->
+                <div class="mt-6 pt-4 border-t">
+                    <label for="language-select" class="block text-lg font-medium mb-2">Select Language:</label>
+                    <select id="language-select" onchange="setLanguage(this.value)" class="w-full p-3 border border-gray-300 rounded-lg text-lg focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="en">English</option>
+                        <option value="am">Amharic</option>
+                    </select>
+                </div>
+            </section>
 
+            <!-- Quiz View -->
+            <section id="view-quiz" class="view-section section-card hidden">
+                <h2 class="text-2xl font-bold border-b pb-2 mb-4 text-indigo-600">Module Quiz</h2>
+                
+                <div class="flex space-x-2 mb-6">
+                    <button onclick="loadQuizForModule('literacy')" class="px-4 py-2 rounded-full text-sm font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200" id="quiz-module-literacy">Literacy Quiz</button>
+                    <button onclick="loadQuizForModule('numeracy')" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300" id="quiz-module-numeracy">Numeracy Quiz</button>
+                </div>
 
-        // --- ORIGINAL APP.JSX CONTENT START ---
+                <div id="quiz-container" class="space-y-6">
+                    <p class="text-xl text-gray-600 text-center">Select a module above to start the quiz.</p>
+                </div>
+                <div id="quiz-message" class="mt-4 text-center text-xl font-bold"></div>
+            </section>
 
-        // Note: The original Firebase import statements are commented out or adapted 
-        // as the SDKs are loaded via CDN above and references are assumed global 
-        // (or accessed via window.firebase for modern functions).
-        const { useState, useEffect, useCallback, useMemo } = React;
+            <!-- Settings View -->
+            <section id="view-settings" class="view-section section-card hidden space-y-6">
+                <h2 class="text-2xl font-bold border-b pb-2 mb-4 text-indigo-600">Accessibility Settings</h2>
 
-        // --- Firebase/Firestore Global Imports & Setup (Adapted for CDN) ---
+                <!-- Contrast Mode -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-3">Contrast Mode</h3>
+                    <div class="flex space-x-4">
+                        <button onclick="changeContrast('light')" data-theme-mode="light" class="p-3 rounded-xl border-2 text-sm font-medium bg-gray-100 ring-4 ring-blue-500 ring-opacity-0 transition-all duration-200">Light</button>
+                        <button onclick="changeContrast('dark')" data-theme-mode="dark" class="p-3 rounded-xl border-2 text-sm font-medium bg-gray-800 text-white ring-4 ring-blue-500 ring-opacity-0 transition-all duration-200">Dark</button>
+                        <button onclick="changeContrast('high')" data-theme-mode="high" class="p-3 rounded-xl border-2 text-sm font-medium bg-black text-yellow-300 ring-4 ring-blue-500 ring-opacity-0 transition-all duration-200">High Contrast</button>
+                    </div>
+                </div>
 
-        // We assume global variables from the host environment:
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                <!-- Text Size -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-3">Text Size</h3>
+                    <div class="flex space-x-4">
+                        <button onclick="changeTextSize('sm')" data-text-size="sm" class="p-3 rounded-xl border-2 text-sm font-medium ring-4 ring-blue-500 ring-opacity-0 transition-all duration-200">Small (A)</button>
+                        <button onclick="changeTextSize('md')" data-text-size="md" class="p-3 rounded-xl border-2 text-lg font-medium ring-4 ring-blue-500 ring-opacity-0 transition-all duration-200">Medium (A)</button>
+                        <button onclick="changeTextSize('lg')" data-text-size="lg" class="p-3 rounded-xl border-2 text-xl font-medium ring-4 ring-blue-500 ring-opacity-0 transition-all duration-200">Large (A)</button>
+                    </div>
+                </div>
+
+                <button onclick="saveUserData()" class="large-touch-target w-full mt-6 bg-green-500 text-white hover:bg-green-600">
+                    <i class="ph ph-floppy-disk text-2xl mr-2"></i> Save Settings
+                </button>
+                <div id="settings-message" class="mt-4 text-center font-semibold"></div>
+            </section>
+
+            <!-- Management View -->
+            <section id="view-management" class="view-section section-card hidden space-y-6">
+                <h2 class="text-2xl font-bold border-b pb-2 mb-4 text-indigo-600">Learner Management</h2>
+                
+                <!-- Add New Learner Form -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="text-xl font-semibold mb-3">Register New Learner</h3>
+                    <form id="add-learner-form" class="space-y-4">
+                        <div>
+                            <label for="first-name" class="block text-sm font-medium text-gray-700">First Name</label>
+                            <input type="text" id="first-name" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                        <div>
+                            <label for="last-name" class="block text-sm font-medium text-gray-700">Last Name</label>
+                            <input type="text" id="last-name" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                        <div>
+                            <label for="grade-level" class="block text-sm font-medium text-gray-700">Grade Level</label>
+                            <input type="number" id="grade-level" min="1" max="12" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                        <button type="submit" class="large-touch-target w-full bg-indigo-600 text-white hover:bg-indigo-700">
+                            <i class="ph ph-user-plus text-2xl mr-2"></i> Register Learner
+                        </button>
+                    </form>
+                    <div id="learner-form-message" class="mt-4 text-center font-semibold"></div>
+                </div>
+
+                <!-- Registered Learners List -->
+                <div class="bg-white p-4 rounded-lg border">
+                    <h3 class="text-xl font-semibold mb-3">Registered Learners (Your School/Group)</h3>
+                    <p class="text-sm text-gray-500 mb-4">Total Learners: <span id="learner-count">0</span></p>
+                    <div id="learners-list" class="space-y-3">
+                        <!-- Learner items will be inserted here -->
+                        <p id="loading-learners" class="text-center text-gray-500">Loading learners...</p>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, onSnapshot, collection, query, where, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- GLOBAL VARIABLES (Must be used) ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-learner-app';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // Use global window.firebase object to access modern SDK functions
-        const initializeApp = window.firebase ? window.firebase.initializeApp : () => ({});
-        const getAuth = window.firebase ? window.firebase.getAuth : () => ({});
-        const signInAnonymously = window.firebase ? window.firebase.signInAnonymously : () => ({});
-        const signInWithCustomToken = window.firebase ? window.firebase.signInWithCustomToken : () => ({});
-        const getFirestore = window.firebase ? window.firebase.getFirestore : () => ({});
-        
-        // Mocking Firestore functions for browser environment if not fully loaded
-        const firestoreFunctions = {
-            collection: (db, path) => ({ db, path }),
-            query: (ref) => ref,
-            onSnapshot: (q, callback, error) => {
-                // Mock function: calls callback with mock data immediately
-                if (q && q.path && q.path.includes('lessons')) {
-                    const mockSnapshot = {
-                        docs: MOCK_LESSONS.map(l => ({ id: l.id, data: () => l, ...l }))
-                    };
-                    setTimeout(() => callback(mockSnapshot), 100);
-                }
-                return () => {}; // Unsubscribe function
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
+
+        // Firestore Path Helpers
+        const getUserSettingsDocPath = (uid) => `/artifacts/${appId}/users/${uid}/appData/settings`;
+        const getLearnersCollectionPath = (uid) => `/artifacts/${appId}/users/${uid}/learners`;
+
+        // --- APPLICATION STATE ---
+        let appState = {
+            view: 'lesson',
+            module: 'literacy',
+            language: 'en',
+            contrastMode: 'light',
+            textSize: 'md',
+        };
+
+        const LESSON_CONTENT = {
+            literacy: {
+                en: "<h1>The English Alphabet</h1><p>The English alphabet has 26 letters. We use these letters to read and write words. Understanding the letters is the first step to literacy. Let's learn A-Z!</p><h3>A is for Apple</h3><p>An apple is a common fruit.</p><h3>B is for Ball</h3><p>A ball is used for games.</p><h2>Try the Quiz!</h2><p>Click the Quiz tab to test your knowledge on letters.</p>",
+                am: "<h1>የእንግሊዘኛ ፊደላት (Literacy)</h1><p>የእንግሊዘኛ ፊደላት 26 ናቸው። ቃላትን ለማንበብ እና ለመጻፍ እንጠቀምባቸዋለን። ፊደላትን መረዳት ለመጻፍና ለማንበብ የመጀመሪያው እርምጃ ነው። ከ A-Z እንማር!</p><h3>A ለአፕል (Apple) ነው</h3><p>አፕል የተለመደ ፍሬ ነው።</p><h3>B ለቦል (Ball) ነው</h3><p>ኳስ ለጨዋታ ይውላል።</p><h2>ፈተናውን ይሞክሩ!</h2><p>ስለ ፊደላት ያለዎትን እውቀት ለመፈተሽ የፈተና ትሩን ይጫኑ።</p>"
             },
-            doc: (db, path) => ({ db, path }),
-            getDoc: async (ref) => ({ exists: () => false, data: () => ({}) }),
-            setDoc: async (ref, data, options) => { console.log('Mocked setDoc called:', ref.path, data); },
-        };
-        const { collection, query, onSnapshot, doc, getDoc, setDoc } = firestoreFunctions;
-
-
-        // Public collection path for shared lessons
-        const getLessonCollectionPath = () => `/artifacts/${appId}/public/data/lessons`;
-        const getUserSettingsDocPath = (userId) => `/artifacts/${appId}/users/${userId}/settings/prefs`;
-
-        // Language Configuration
-        const LANGUAGES = [
-          { code: 'am', name: 'Amharic' },
-          { code: 'om', name: 'Oromo' },
-          { code: 'ti', name: 'Tigrinya' },
-          { code: 'en', name: 'English' },
-        ];
-
-        // Contrast Modes
-        const CONTRAST_MODES = {
-          default: { bg: 'bg-white', text: 'text-gray-800', accent: 'bg-indigo-600', name: 'Default' },
-          high: { bg: 'bg-black', text: 'text-yellow-300', accent: 'bg-red-600', name: 'High Contrast' },
-          low: { bg: 'bg-gray-100', text: 'text-gray-900', accent: 'bg-teal-600', name: 'Low Glare' },
-        };
-
-        // Mock Lesson Data (P1-P3 Literacy & Numeracy)
-        const MOCK_LESSONS = [
-          { id: 'l1', grade: 1, subject: 'Literacy', title: 'The Letter A (Amharic)', lang: 'am', text: 'ይህ ፊደል “አ” ነው።', content: 'The first letter in Amharic, pronounced like "a" in "car".', audioSrc: 'mock-audio-amharic-a.mp3', videoId: 'sign-A', quiz: [{q:'What sound is this?', a:'አ', options:['በ', 'ለ', 'አ']}] },
-          { id: 'l2', grade: 1, subject: 'Numeracy', title: 'Counting One to Three', lang: 'en', text: 'One, Two, Three. Let\'s count the circles.', content: 'Circle 1, Circle 2, Circle 3. [Image of three circles]', audioSrc: 'mock-audio-en-123.mp3', videoId: 'sign-123', quiz: [{q:'How many circles?', a:'3', options:['1', '2', '3']}] },
-          { id: 'l3', grade: 2, subject: 'Literacy', title: 'Oromo Words: Boro', lang: 'om', text: 'Barreessaa jecha "Boro" jedhu.', content: 'Boro means "tomorrow". Let\'s spell B-O-R-O.', audioSrc: 'mock-audio-oromo-boro.mp3', videoId: 'sign-B', quiz: [{q:'What does Boro mean?', a:'Tomorrow', options:['Today', 'Yesterday', 'Tomorrow']}] },
-          { id: 'l4', grade: 3, subject: 'Numeracy', title: 'Adding 5 + 3', lang: 'ti', text: '5 + 3 ማለት ስንት ማለት እዩ?', content: 'We have five apples and add three more. We get eight apples!', audioSrc: 'mock-audio-tigrinya-math.mp3', videoId: 'sign-plus', quiz: [{q:'5 + 3 = ?', a:'8', options:['5', '8', '3']}] },
-          
-          // --- NEW LESSONS ADDED BELOW ---
-          { id: 'l5', grade: 1, subject: 'Literacy', title: 'Days of the Week (Amharic)', lang: 'am', text: 'ሰኞ, ማክሰኞ, ረቡዕ, ሐሙስ, አርብ, ቅዳሜ, እሑድ።', content: 'These are the seven days in a week. Say them out loud!', audioSrc: 'mock-audio-am-days.mp3', videoId: 'sign-days', quiz: [{q:'What is the first day of the week?', a:'ሰኞ', options:['እሑድ', 'ሰኞ', 'ሐሙስ']}] },
-          { id: 'l6', grade: 2, subject: 'Numeracy', title: 'The Concept of a Week', lang: 'en', text: 'How many days are in one week? Seven days.', content: 'Seven days make one week. Counting 1 to 7 is one full week.', audioSrc: 'mock-audio-en-week.mp3', videoId: 'sign-seven', quiz: [{q:'A week has how many days?', a:'7', options:['5', '7', '10']}] },
-          { id: 'l7', grade: 2, subject: 'Literacy', title: 'Family Words (Tigrinya)', lang: 'ti', text: 'ኣቦ, ኣደ, ሓው, ሓፍቲ', content: 'Abo means Father. Ade means Mother. Practice saying these important words.', audioSrc: 'mock-audio-ti-family.mp3', videoId: 'sign-family', quiz: [{q:'What does ኣቦ mean?', a:'Father', options:['Brother', 'Mother', 'Father']}] },
-          { id: 'l8', grade: 3, subject: 'Numeracy', title: 'Months in a Year (Oromo)', lang: 'om', text: 'Ji’a 12 (Kudha lama). Tokko, Lamma, Sadii...', content: 'There are twelve (12) months in one whole year. Let\'s count them!', audioSrc: 'mock-audio-om-months.mp3', videoId: 'sign-12', quiz: [{q:'How many months in a year?', a:'12', options:['10', '12', '3']}] },
-          // --- NEW LESSONS ADDED ABOVE ---
-        ];
-
-        // --- Utility Functions ---
-
-        const showToast = (message, type = 'success') => {
-          const toastContainer = document.getElementById('toast-container');
-          if (!toastContainer) return;
-
-          const color = type === 'error' ? 'bg-red-600' : 'bg-green-600';
-
-          const toast = document.createElement('div');
-          toast.className = `${color} text-white px-4 py-3 rounded-lg shadow-xl mb-3 opacity-0 transition-opacity duration-500 transform translate-y-2`;
-          toast.textContent = message;
-
-          toastContainer.prepend(toast); // Newest toast on top
-
-          setTimeout(() => {
-            toast.style.opacity = '1';
-            toast.style.transform = 'translateY(0)';
-          }, 10);
-
-          setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.transform = 'translateY(-10px)';
-            setTimeout(() => toastContainer.removeChild(toast), 500);
-          }, 4000);
-        };
-
-        // --- TTS Audio Functions (PCM to WAV conversion) ---
-
-        // Map lesson language codes to a voice (using a neutral voice for Ethiopian languages)
-        const VOICE_MAP = {
-            'am': 'Kore', // Amharic
-            'om': 'Kore', // Oromo
-            'ti': 'Kore', // Tigrinya
-            'en': 'Zephyr', // English
-        };
-
-        // Function to convert Base64 to ArrayBuffer
-        const base64ToArrayBuffer = (base64) => {
-            const binaryString = atob(base64);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
+            numeracy: {
+                en: "<h1>Numeracy Lesson: Numbers 1-10</h1><p>Numeracy is about understanding numbers and counting. Counting helps us keep track of quantities. Let's learn 1-10!</p><h3>1 (One)</h3><p>One sun, one moon.</p><h3>2 (Two)</h3><p>Two hands, two feet.</p><h2>Try the Quiz!</h2><p>Click the Quiz tab to test your knowledge on numbers.</p>",
+                am: "<h1>የቁጥር ትምህርት (Numeracy)፡ ቁጥሮች 1-10</h1><p>የቁጥር ትምህርት ቁጥሮችን እና መቁጠርን መረዳት ነው። መቁጠር መጠኖችን እንድንከታተል ይረዳናል። ከ 1-10 እንማር!</p><h3>1 (አንድ)</h3><p>አንድ ፀሐይ፣ አንድ ጨረቃ።</p><h3>2 (ሁለት)</h3><p>ሁለት እጆች፣ ሁለት እግሮች።</p><h2>ፈተናውን ይሞክሩ!</h2><p>ስለ ቁጥሮች ያለዎትን እውቀት ለመፈተሽ የፈተና ትሩን ይጫኑ።</p>"
             }
-            return bytes.buffer;
         };
 
-        // Function to convert PCM data to a WAV Blob (Signed 16-bit PCM, 24000 Hz assumed)
-        const pcmToWav = (pcmData, sampleRate = 24000, numChannels = 1) => {
-            const pcm16 = new Int16Array(pcmData);
-            const buffer = new ArrayBuffer(44 + pcm16.length * 2);
-            const view = new DataView(buffer);
+        const QUIZ_QUESTIONS = {
+            literacy: [
+                { id: 1, question: "Which letter comes after 'C'?", options: [{ text: "A. D", correct: true }, { text: "B. B", correct: false }, { text: "C. E", correct: false }], answer: 'A' },
+                { id: 2, question: "What is the first letter of 'Zebra'?", options: [{ text: "A. X", correct: false }, { text: "B. Z", correct: true }, { text: "C. S", correct: false }], answer: 'B' },
+            ],
+            numeracy: [
+                { id: 1, question: "How many fingers do you have on one hand?", options: [{ text: "A. Four", correct: false }, { text: "B. Five", correct: true }, { text: "C. Ten", correct: false }], answer: 'B' },
+                { id: 2, question: "What number comes after 9?", options: [{ text: "A. 8", correct: false }, { text: "B. 10", correct: true }, { text: "C. 11", correct: false }], answer: 'B' },
+            ]
+        };
+        let currentQuizIndex = 0;
+        let currentQuizModule = 'literacy';
 
-            // Helper function to write string
-            const writeString = (view, offset, string) => {
-                for (let i = 0; i < string.length; i++) {
-                    view.setUint8(offset + i, string.charCodeAt(i));
+
+        // --- FIREBASE AND DATA MANAGEMENT ---
+
+        async function setupFirebase() {
+            try {
+                if (!firebaseConfig) {
+                    console.error("Firebase config is missing.");
+                    return;
                 }
-            };
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
 
-            let offset = 0;
-
-            /* RIFF identifier */
-            writeString(view, offset, 'RIFF'); offset += 4;
-            /* file length */
-            view.setUint32(offset, 36 + pcm16.length * 2, true); offset += 4;
-            /* RIFF type */
-            writeString(view, offset, 'WAVE'); offset += 4;
-            /* format chunk identifier */
-            writeString(view, offset, 'fmt '); offset += 4;
-            /* format chunk length */
-            view.setUint32(offset, 16, true); offset += 4;
-            /* sample format (1 = PCM) */
-            view.setUint16(offset, 1, true); offset += 2;
-            /* channel count */
-            view.setUint16(offset, numChannels, true); offset += 2;
-            /* sample rate */
-            view.setUint32(offset, sampleRate, true); offset += 4;
-            /* byte rate (sample rate * block align) */
-            view.setUint32(offset, sampleRate * numChannels * 2, true); offset += 4;
-            /* block align (numChannels * bytesPerSample) */
-            view.setUint16(offset, numChannels * 2, true); offset += 2;
-            /* bits per sample */
-            view.setUint16(offset, 16, true); offset += 2;
-            /* data chunk identifier */
-            writeString(view, offset, 'data'); offset += 4;
-            /* data chunk length */
-            view.setUint32(offset, pcm16.length * 2, true); offset += 4;
-
-            // Write PCM data
-            pcm16.forEach((sample, i) => {
-                view.setInt16(offset + i * 2, sample, true);
-            });
-
-            return new Blob([view], { type: 'audio/wav' });
-        };
-
-        /**
-         * Calls the Gemini TTS API, converts the PCM result to a WAV Blob, and plays it.
-         * @param {string} text The text to speak.
-         * @param {string} langCode The language code to select the voice.
-         */
-        const playTTS = async (text, langCode) => {
-            const voiceName = VOICE_MAP[langCode] || VOICE_MAP['en'];
-            const payload = {
-                contents: [{
-                    parts: [{ text: text }]
-                }],
-                generationConfig: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: voiceName }
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+                        document.getElementById('user-display').textContent = `User: ${userId.substring(0, 8)}...`;
+                        console.log("Firebase Auth State Changed: User logged in.", userId);
+                        await loadUserData();
+                        startLearnersListener(); // Start listening to learner data
+                    } else {
+                        // Sign in anonymously if no token, otherwise attempt with token
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
                         }
                     }
-                },
-                model: "gemini-2.5-flash-preview-tts"
-            };
-            const apiKey = "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
-
-            let response;
-            // Implement exponential backoff for robustness
-            for (let i = 0; i < 3; i++) {
-                try {
-                    response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (response.ok) {
-                        break; // Success
-                    } else if (response.status === 429 && i < 2) {
-                        // Throttle: Wait exponentially
-                        const delay = Math.pow(2, i) * 1000;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    } else {
-                        throw new Error(`API returned status ${response.status}`);
-                    }
-                } catch (error) {
-                    if (i === 2) throw error; // Re-throw on final attempt
-                }
-            }
-
-            if (!response || !response.ok) {
-                throw new Error("Failed to get response from TTS API.");
-            }
-
-            const result = await response.json();
-            const part = result?.candidates?.[0]?.content?.parts?.[0];
-            const audioData = part?.inlineData?.data;
-            const mimeType = part?.inlineData?.mimeType;
-
-            if (audioData && mimeType && mimeType.startsWith("audio/")) {
-                const sampleRateMatch = mimeType.match(/rate=(\d+)/);
-                const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
-
-                const pcmBuffer = base64ToArrayBuffer(audioData);
-                const wavBlob = pcmToWav(pcmBuffer, sampleRate);
-                const audioUrl = URL.createObjectURL(wavBlob);
-
-                const audio = new Audio(audioUrl);
-                
-                return new Promise((resolve) => {
-                    audio.play().catch(e => {
-                        // Handle cases where user interaction is needed to play audio
-                        console.error("Audio playback prevented:", e);
-                        showToast("Click the button again to play audio (browser permission).", 'error');
-                        URL.revokeObjectURL(audioUrl);
-                        resolve();
-                    });
-
-                    audio.onended = () => {
-                        URL.revokeObjectURL(audioUrl); // Clean up
-                        resolve();
-                    };
-                    audio.onerror = (e) => {
-                        URL.revokeObjectURL(audioUrl);
-                        console.error("Audio playback error:", e);
-                        resolve();
-                    };
                 });
-
-            } else {
-                // Log the full result for better debugging if the expected structure is missing
-                console.error("TTS API Response (Invalid Structure):", JSON.stringify(result, null, 2));
-                throw new Error("Invalid audio response structure from API. Response likely empty or malformed.");
-            }
-        };
-
-        // --- Core App Component ---
-
-        const App = () => {
-          const [db, setDb] = useState(null);
-          const [userId, setUserId] = useState(null);
-          const [isAuthReady, setIsAuthReady] = useState(false);
-          const [currentPage, setCurrentPage] = useState('home');
-          const [currentLesson, setCurrentLesson] = useState(null);
-          const [isAudioLoading, setIsAudioLoading] = useState(false); // New state for audio loading
-
-          // Accessibility State (Default Settings)
-          const [language, setLanguage] = useState(LANGUAGES[0].code); // Default Amharic
-          const [textSize, setTextSize] = useState('text-xl');
-          const [contrastMode, setContrastMode] = useState('default');
-
-          // Lesson Data State
-          const [lessons, setLessons] = useState([]);
-          const [isDataLoaded, setIsDataLoaded] = useState(false);
-
-
-          // --- Firebase/Auth/Data Initialization ---
-
-          useEffect(() => {
-            if (!firebaseConfig) {
-              // Offline fallback: Use mock data directly
-              setLessons(MOCK_LESSONS);
-              setIsDataLoaded(true);
-              setIsAuthReady(true);
-              return;
-            }
-
-            try {
-              // Using window.firebase for CDN loaded SDK
-              const app = initializeApp(firebaseConfig);
-              const firestore = getFirestore(app);
-              const firebaseAuth = getAuth(app);
-
-              setDb(firestore);
-
-              // Authentication
-              const unsubscribeAuth = firebaseAuth.onAuthStateChanged(async (user) => {
-                if (!user) {
-                  if (initialAuthToken) {
-                    await signInWithCustomToken(firebaseAuth, initialAuthToken);
-                  } else {
-                    await signInAnonymously(firebaseAuth);
-                  }
-                }
-                const currentUid = firebaseAuth.currentUser?.uid || crypto.randomUUID();
-                setUserId(currentUid);
-                setIsAuthReady(true);
-              });
-
-              return () => unsubscribeAuth();
             } catch (error) {
-              console.error("Firebase initialization failed:", error);
-              showToast("Error initializing app. Running in fully offline mode.", 'error');
-              // Fallback to fully offline mode
-              setLessons(MOCK_LESSONS);
-              setIsDataLoaded(true);
-              setIsAuthReady(true);
+                console.error("Error setting up Firebase:", error);
             }
-          }, []);
-
-          // Fetch/Sync Lessons and Settings
-          useEffect(() => {
-            if (!isAuthReady || !db || !userId) return;
-
-            // 1. Fetch Lessons (Public Data)
-            const lessonsRef = collection(db, getLessonCollectionPath());
-            const unsubscribeLessons = onSnapshot(query(lessonsRef), (snapshot) => {
-              const remoteLessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-              // Merge remote lessons with mock data for robust offline access (simplistic merging)
-              const mergedLessons = MOCK_LESSONS.map(mock => {
-                const remote = remoteLessons.find(r => r.id === mock.id);
-                return remote || mock; // Prefer remote if available
-              });
-
-              if (remoteLessons.length > MOCK_LESSONS.length) {
-                 setLessons(remoteLessons);
-              } else {
-                 setLessons(mergedLessons);
-              }
-              setIsDataLoaded(true);
-              console.log(`Loaded ${remoteLessons.length} remote lessons.`);
-            }, (error) => {
-              console.error("Error fetching lessons:", error);
-              // If sync fails, fall back to mock data
-              setLessons(MOCK_LESSONS);
-              setIsDataLoaded(true);
-              showToast("Could not sync lessons. Using offline content.", 'error');
-            });
-
-            // 2. Fetch User Settings (Private Data)
-            const fetchUserSettings = async () => {
-                try {
-                    const settingsDocRef = doc(db, getUserSettingsDocPath(userId));
-                    const docSnap = await getDoc(settingsDocRef);
-                    if (docSnap.exists()) {
-                        const settings = docSnap.data();
-                        setLanguage(settings.language || LANGUAGES[0].code);
-                        setTextSize(settings.textSize || 'text-xl');
-                        setContrastMode(settings.contrastMode || 'default');
-                    }
-                } catch (e) {
-                    console.error("Error loading settings:", e);
-                }
-            };
-            fetchUserSettings();
-
-            return () => unsubscribeLessons();
-          }, [isAuthReady, db, userId]);
-
-          // Save Settings on change
-          const saveSettings = useCallback(async (newLang, newSize, newContrast) => {
-            setLanguage(newLang);
-            setTextSize(newSize);
-            setContrastMode(newContrast);
-
-            if (db && userId) {
-              try {
-                const settingsDocRef = doc(db, getUserSettingsDocPath(userId));
-                await setDoc(settingsDocRef, {
-                  language: newLang,
-                  textSize: newSize,
-                  contrastMode: newContrast,
-                }, { merge: true });
-                showToast("Settings saved and synced!");
-              } catch (e) {
-                console.error("Error saving settings:", e);
-                showToast("Settings saved locally but could not sync.", 'error');
-              }
-            } else {
-                showToast("Settings saved locally.");
-            }
-          }, [db, userId]);
-
-
-          // --- Helper Data / Styling ---
-
-          const currentStyle = CONTRAST_MODES[contrastMode];
-          const accentColor = currentStyle.accent;
-
-          // Filter and group lessons by subject for the lesson screen
-          const categorizedLessons = useMemo(() => {
-            return lessons.filter(l => l.lang === language).reduce((acc, lesson) => {
-              const subject = lesson.subject;
-              if (!acc[subject]) {
-                acc[subject] = [];
-              }
-              acc[subject].push(lesson);
-              return acc;
-            }, {});
-          }, [lessons, language]);
-          
-          // --- Audio Handler ---
-          const handleVoiceGuide = async (text, langCode) => {
-            if (isAudioLoading) return;
-            setIsAudioLoading(true);
-            showToast("Generating voice guide...", 'success');
-            try {
-                await playTTS(text, langCode);
-                showToast("Audio playback started.", 'success');
-            } catch (e) {
-                console.error("TTS Playback Error:", e);
-                showToast("Failed to generate or play audio. Check console for details.", 'error');
-            } finally {
-                setIsAudioLoading(false);
-            }
-          };
-
-
-          // --- Screens ---
-
-          const HomeScreen = () => (
-            <div className="flex flex-col items-center justify-center p-8 h-full">
-              <h2 className={`text-4xl font-extrabold mb-8 text-center ${currentStyle.text}`}>
-                እንኳን ደህና መጣህ! <br /> Welcome!
-              </h2>
-              <p className={`text-xl mb-12 text-center ${currentStyle.text}`}>
-                Choose a subject to start learning.
-              </p>
-
-              <div className="grid grid-cols-1 gap-6 w-full max-w-sm">
-                <ActionButton icon={BookOpen} label="Literacy" onClick={() => setCurrentPage('lessons')} color="bg-green-600" />
-                <ActionButton icon={Calculator} label="Numeracy" onClick={() => setCurrentPage('lessons')} color="bg-blue-600" />
-              </div>
-
-              <p className="mt-12 text-center text-sm text-gray-500">
-                App ID: <span className="font-mono text-xs">{appId}</span>
-              </p>
-            </div>
-          );
-
-          const SettingsScreen = () => (
-            <div className="p-4 sm:p-8">
-              <h2 className={`text-3xl font-bold mb-6 ${currentStyle.text}`}>
-                <Settings className="inline mr-3 w-7 h-7" /> Settings
-              </h2>
-
-              {/* Language Selector */}
-              <SettingSection title="Language" icon={Languages} currentStyle={currentStyle}>
-                <div className="grid grid-cols-2 gap-4">
-                  {LANGUAGES.map(lang => (
-                    <button
-                      key={lang.code}
-                      onClick={() => saveSettings(lang.code, textSize, contrastMode)}
-                      className={`p-4 rounded-xl font-bold text-lg border-4 transition-all duration-200 ${lang.code === language ? `${accentColor} text-white border-white shadow-lg` : 'bg-gray-200 text-gray-800 border-gray-300 hover:bg-gray-300'}`}
-                    >
-                      {lang.name}
-                    </button>
-                  ))}
-                </div>
-              </SettingSection>
-
-              {/* Text Size Selector */}
-              <SettingSection title="Text Size" icon={Text} currentStyle={currentStyle}>
-                <div className="flex justify-between space-x-4">
-                  {['text-lg', 'text-xl', 'text-3xl', 'text-5xl'].map((sizeClass, index) => (
-                    <button
-                      key={sizeClass}
-                      onClick={() => saveSettings(language, sizeClass, contrastMode)}
-                      className={`flex-1 p-3 rounded-xl font-bold transition-all duration-200 ${sizeClass === textSize ? `${accentColor} text-white shadow-lg` : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
-                    >
-                      <span className={sizeClass}>A{index + 1}</span>
-                    </button>
-                  ))}
-                </div>
-              </SettingSection>
-
-              {/* Color Contrast Selector */}
-              <SettingSection title="Color Contrast" icon={Contrast} currentStyle={currentStyle}>
-                <div className="grid grid-cols-3 gap-4">
-                  {Object.entries(CONTRAST_MODES).map(([mode, style]) => (
-                    <button
-                      key={mode}
-                      onClick={() => saveSettings(language, textSize, mode)}
-                      className={`p-4 rounded-xl font-bold text-lg border-4 transition-all duration-200 flex flex-col items-center ${mode === contrastMode ? `${accentColor} text-white border-white shadow-lg` : `${style.bg} ${style.text} border-gray-300 hover:opacity-80`}`}
-                    >
-                      <div className={`w-8 h-8 rounded-full mb-1 ${style.accent}`}></div>
-                      {style.name}
-                    </button>
-                  ))}
-                </div>
-              </SettingSection>
-
-            </div>
-          );
-
-          const LessonsScreen = () => (
-            <div className="p-4 sm:p-8">
-              <h2 className={`text-3xl font-bold mb-6 ${currentStyle.text}`}>
-                <BookOpen className="inline mr-3 w-7 h-7" /> Lessons ({LANGUAGES.find(l => l.code === language)?.name})
-              </h2>
-              {!isDataLoaded && (
-                <p className={`text-center py-10 ${currentStyle.text}`}>Loading content...</p>
-              )}
-              {Object.entries(categorizedLessons).length === 0 && isDataLoaded ? (
-                 <p className={`text-center py-10 ${currentStyle.text}`}>No lessons found for the selected language.</p>
-              ) : (
-                <div className="space-y-6">
-                  {Object.entries(categorizedLessons).map(([subject, list]) => (
-                    <div key={subject}>
-                      <h3 className={`text-2xl font-semibold mb-3 p-2 rounded-lg ${currentStyle.accent.replace('bg-', 'text-')} `}>{subject}</h3>
-                      <div className="space-y-3">
-                        {list.map(lesson => (
-                          <button
-                            key={lesson.id}
-                            onClick={() => {
-                              setCurrentLesson(lesson);
-                              setCurrentPage('lessonDetail');
-                            }}
-                            className={`w-full text-left p-4 rounded-xl border-b-4 transition-all duration-200 shadow-md ${currentStyle.bg} ${currentStyle.text} hover:opacity-90`}
-                          >
-                            <span className="font-semibold text-lg">P{lesson.grade}: {lesson.title}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-
-          const LessonDetail = ({ lesson }) => {
-            const [quizActive, setQuizActive] = useState(false);
-            const [selectedAnswer, setSelectedAnswer] = useState(null);
-            const [quizResult, setQuizResult] = useState(null);
-
-            const handleQuizSubmit = (selected) => {
-                setSelectedAnswer(selected);
-                if (selected === lesson.quiz[0].a) {
-                    setQuizResult('correct');
-                    showToast("Correct Answer!", 'success');
-                } else {
-                    setQuizResult('incorrect');
-                    showToast("Try again!", 'error');
-                }
-            };
-
-            return (
-              <div className="p-4 sm:p-8">
-                {/* Back Button */}
-                <button onClick={() => setCurrentPage('lessons')} className={`mb-6 flex items-center ${currentStyle.text} hover:opacity-80`}>
-                  <Home className="w-5 h-5 mr-2" /> Back to Lessons
-                </button>
-
-                <h2 className={`text-4xl font-extrabold mb-4 ${currentStyle.text}`}>{lesson.title}</h2>
-                <p className={`text-lg font-medium mb-6 ${currentStyle.text}`}>Grade {lesson.grade} - {lesson.subject}</p>
-
-                {/* Multisensory Content */}
-                <div className={`p-6 rounded-xl mb-8 shadow-xl border-4 ${accentColor.replace('bg-', 'border-')}`} style={{backgroundColor: currentStyle.bg}}>
-
-                  {/* Text/Visuals */}
-                  <div className="mb-6">
-                    <p className={`font-serif leading-relaxed ${textSize}`}>{lesson.text}</p>
-                    <p className={`mt-4 ${textSize} text-gray-500`}>{lesson.content}</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Audio Guide (Tactile/Audio Interaction) */}
-                      <MultisensoryButton
-                        label={isAudioLoading ? 'Loading Voice...' : 'Voice Guide'}
-                        icon={isAudioLoading ? Loader2 : Volume2}
-                        color="bg-purple-600"
-                        onClick={() => handleVoiceGuide(lesson.text, lesson.lang)}
-                        isLoading={isAudioLoading} // Pass loading state
-                      />
-
-                      {/* Sign Language Video Placeholder */}
-                      <MultisensoryButton
-                        label="Sign Language"
-                        icon={Video}
-                        color="bg-pink-600"
-                        onClick={() => showToast(`Playing Sign Language video for: ${lesson.videoId}. (In a real app, this would stream the video)`)}
-                        isLoading={false}
-                      />
-                  </div>
-                </div>
-
-                {/* Interactive Quiz/Game */}
-                <div className={`p-6 rounded-xl ${currentStyle.bg} shadow-2xl`}>
-                    <h3 className={`text-2xl font-bold mb-4 ${currentStyle.text}`}>Interactive Quiz</h3>
-                    {!quizActive ? (
-                        <ActionButton label="Start Quiz" icon={BookOpen} onClick={() => setQuizActive(true)} color="bg-teal-600" />
-                    ) : (
-                        <div className="space-y-4">
-                            <p className={`font-bold ${textSize}`}>{lesson.quiz[0].q}</p>
-                            <div className="grid grid-cols-2 gap-3">
-                                {lesson.quiz[0].options.map(option => (
-                                    <button
-                                        key={option}
-                                        onClick={() => handleQuizSubmit(option)}
-                                        className={`p-4 rounded-lg font-bold text-lg transition-all duration-200 border-4
-                                            ${quizResult === 'correct' && selectedAnswer === option ? 'bg-green-500 text-white border-white' : ''}
-                                            ${quizResult === 'incorrect' && selectedAnswer === option ? 'bg-red-500 text-white border-white' : ''}
-                                            ${!quizResult || selectedAnswer !== option ? 'bg-gray-200 text-gray-800 border-gray-300 hover:bg-gray-300' : ''}
-                                        `}
-                                        disabled={!!quizResult}
-                                    >
-                                        {option}
-                                    </button>
-                                ))}
-                            </div>
-                            {quizResult && (
-                                <div className="pt-2">
-                                    <button
-                                        onClick={() => {setQuizActive(false); setQuizResult(null); setSelectedAnswer(null);}}
-                                        className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700"
-                                    >
-                                        Finish Lesson
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-              </div>
-            );
-          };
-
-
-          // --- Helper Components ---
-
-          const ActionButton = ({ icon: Icon, label, onClick, color }) => (
-            <button
-              onClick={onClick}
-              className={`w-full flex flex-col items-center justify-center p-6 rounded-xl shadow-xl transition-all duration-300 transform hover:scale-[1.02] ${color} text-white`}
-            >
-              <Icon className="w-12 h-12 mb-2" />
-              <span className="text-xl font-bold">{label}</span>
-            </button>
-          );
-
-          const MultisensoryButton = ({ icon: Icon, label, onClick, color, isLoading }) => (
-            <button
-              onClick={onClick}
-              disabled={isLoading}
-              className={`w-full flex items-center justify-center p-4 rounded-lg shadow-md transition-all duration-300 transform text-white text-lg font-bold
-                ${isLoading ? 'bg-gray-500 cursor-not-allowed opacity-70' : `${color} hover:opacity-90`}`}
-            >
-              <Icon className={`w-6 h-6 mr-3 ${isLoading ? 'animate-spin-fast' : ''}`} />
-              {label}
-            </button>
-          );
-
-
-          const SettingSection = ({ title, icon: Icon, children, currentStyle }) => (
-            <div className={`mb-8 p-4 rounded-xl shadow-inner border border-gray-200 ${currentStyle.bg}`}>
-              <h3 className={`text-xl font-semibold mb-3 flex items-center ${currentStyle.text}`}>
-                <Icon className="w-6 h-6 mr-2" /> {title}
-              </h3>
-              {children}
-            </div>
-          );
-
-          // --- Main Render & Navigation ---
-
-          const renderContent = () => {
-            switch (currentPage) {
-              case 'home':
-                return <HomeScreen />;
-              case 'lessons':
-                return <LessonsScreen />;
-              case 'settings':
-                return <SettingsScreen />;
-              case 'lessonDetail':
-                return currentLesson ? <LessonDetail lesson={currentLesson} /> : <LessonsScreen />;
-              default:
-                return <HomeScreen />;
-            }
-          };
-
-          const currentBgClass = CONTRAST_MODES[contrastMode].bg;
-
-          return (
-            <div className={`min-h-screen ${currentBgClass} font-['Inter'] flex flex-col`}>
-              
-              {/* Main Content Area */}
-              <div className="flex-grow max-w-lg w-full mx-auto overflow-y-auto">
-                {renderContent()}
-              </div>
-
-              {/* Fixed Bottom Navigation (Simple, Large Touch Targets) */}
-              <div className={`sticky bottom-0 left-0 right-0 w-full p-3 shadow-2xl border-t-4 ${currentBgClass} ${accentColor.replace('bg-', 'border-')}`}>
-                <div className="flex justify-around max-w-sm mx-auto">
-                  <NavButton icon={Home} label="Home" active={currentPage === 'home'} onClick={() => { setCurrentPage('home'); setCurrentLesson(null); }} accentColor={accentColor} currentStyle={currentStyle} />
-                  <NavButton icon={BookOpen} label="Lessons" active={currentPage === 'lessons'} onClick={() => setCurrentPage('lessons')} accentColor={accentColor} currentStyle={currentStyle} />
-                  <NavButton icon={Settings} label="Settings" active={currentPage === 'settings'} onClick={() => setCurrentPage('settings')} accentColor={accentColor} currentStyle={currentStyle} />
-                </div>
-              </div>
-            </div>
-          );
-        };
-
-        const NavButton = ({ icon: Icon, label, active, onClick, accentColor, currentStyle }) => (
-            <button
-                onClick={onClick}
-                className={`flex flex-col items-center p-2 rounded-xl transition-all duration-200 w-1/3 ${active ? `${accentColor} text-white shadow-lg` : `${currentStyle.text} hover:opacity-80`}`}
-            >
-                <Icon className="w-7 h-7" />
-                <span className="text-xs font-semibold mt-1">{label}</span>
-            </button>
-        );
-
-
-        // --- ORIGINAL APP.JSX CONTENT END ---
-
-        // Mount the application
-        const rootElement = document.getElementById('root');
-        if (rootElement) {
-          ReactDOM.createRoot(rootElement).render(<App />);
         }
 
+        async function loadUserData() {
+            if (!userId) {
+                console.error("User ID not available to load data.");
+                return;
+            }
+
+            try {
+                const settingsDocRef = doc(db, getUserSettingsDocPath(userId));
+                const docSnap = await getDoc(settingsDocRef);
+
+                if (docSnap.exists()) {
+                    const savedSettings = docSnap.data();
+                    console.log("Settings loaded from Firestore:", savedSettings);
+
+                    // Update local state
+                    appState = {
+                        ...appState,
+                        view: savedSettings.view || appState.view,
+                        module: savedSettings.module || appState.module,
+                        language: savedSettings.language || appState.language,
+                        contrastMode: savedSettings.contrastMode || appState.contrastMode,
+                        textSize: savedSettings.textSize || appState.textSize,
+                    };
+                } else {
+                    console.log("No user settings found, using defaults.");
+                }
+            } catch (error) {
+                console.error("Error loading user data:", error);
+                // The original error was: Cannot read properties of null (reading 'dataset')
+                // This fix relies on DOMContentLoaded check which ensures the elements are present.
+            }
+            
+            // Apply initial state to the DOM AFTER loading or using defaults.
+            applyTheme(appState.contrastMode);
+            applyTextSize(appState.textSize);
+            loadModule(appState.module); 
+            setLanguage(appState.language);
+            changeView(appState.view);
+        }
+
+        async function saveUserData() {
+            if (!userId) {
+                console.error("User ID not available to save data.");
+                return;
+            }
+
+            try {
+                const settingsDocRef = doc(db, getUserSettingsDocPath(userId));
+                await setDoc(settingsDocRef, appState, { merge: true });
+                showSettingsFeedback("✅ Settings saved successfully!", 'success');
+            } catch (error) {
+                console.error("Error saving user data:", error);
+                showSettingsFeedback("❌ Failed to save settings. Check console.", 'error');
+            }
+        }
+        
+        // Learner Management Functions
+        let learnersUnsubscribe = null;
+
+        function startLearnersListener() {
+            if (learnersUnsubscribe) learnersUnsubscribe();
+
+            if (!db || !userId) {
+                console.error("Database or User ID not ready for listener.");
+                return;
+            }
+
+            const learnersColRef = collection(db, getLearnersCollectionPath(userId));
+            const q = query(learnersColRef);
+
+            learnersUnsubscribe = onSnapshot(q, (snapshot) => {
+                const learners = [];
+                snapshot.forEach(doc => {
+                    learners.push({ id: doc.id, ...doc.data() });
+                });
+                renderLearners(learners);
+            }, (error) => {
+                console.error("Error listening to learners:", error);
+                document.getElementById('loading-learners').textContent = "Failed to load learners.";
+            });
+        }
+
+        function renderLearners(learners) {
+            const listEl = document.getElementById('learners-list');
+            document.getElementById('learner-count').textContent = learners.length;
+            
+            listEl.innerHTML = ''; // Clear existing list
+            
+            if (learners.length === 0) {
+                listEl.innerHTML = '<p class="text-center text-gray-500">No learners registered yet.</p>';
+                return;
+            }
+
+            // Sort by first name
+            learners.sort((a, b) => a.firstName.localeCompare(b.firstName));
+
+            learners.forEach(learner => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between p-3 bg-white rounded-lg border shadow-sm';
+                item.innerHTML = `
+                    <div class="flex-grow">
+                        <p class="text-lg font-semibold">${learner.firstName} ${learner.lastName}</p>
+                        <p class="text-sm text-gray-500">Grade: ${learner.gradeLevel} | ID: ${learner.id.substring(0, 8)}...</p>
+                    </div>
+                    <div>
+                        <button onclick="deleteLearner('${learner.id}')" class="p-2 text-red-600 hover:text-red-800 transition-colors">
+                            <i class="ph ph-trash text-xl"></i>
+                        </button>
+                    </div>
+                `;
+                listEl.appendChild(item);
+            });
+        }
+
+        async function deleteLearner(learnerId) {
+             if (!userId || !learnerId) return;
+
+             // Use a simple prompt/confirm flow without external libraries
+             if (!window.confirm(`Are you sure you want to delete learner ID ${learnerId.substring(0, 5)}...?`)) {
+                return;
+             }
+
+             try {
+                const learnerDocRef = doc(db, getLearnersCollectionPath(userId), learnerId);
+                await deleteDoc(learnerDocRef);
+                showFormFeedback(`🗑️ Learner deleted! ID: ${learnerId.substring(0, 5)}...`, 'info');
+            } catch (error) {
+                console.error("Error deleting learner:", error);
+                showFormFeedback("❌ Failed to delete learner. Check console for details.", 'error');
+            }
+        }
+
+
+        // --- UI & ACCESSIBILITY FUNCTIONS ---
+
+        function applyTheme(mode) {
+            const body = document.getElementById('app-body');
+            if (!body) return; // Null check added for safety
+
+            // Apply base contrast class
+            body.className = body.className.split(' ').filter(c => !c.startsWith('bg-') && !c.startsWith('text-') && c !== 'dark-mode' && c !== 'high-contrast').join(' ');
+            
+            if (mode === 'dark') {
+                body.classList.add('bg-gray-900', 'text-gray-100', 'dark-mode');
+            } else if (mode === 'high') {
+                body.classList.add('high-contrast');
+            } else { // light
+                body.classList.add('bg-gray-100', 'text-gray-900');
+            }
+
+            // Update button visual state
+            const themeButtons = document.querySelectorAll('[data-theme-mode]');
+            if (themeButtons.length > 0) { // Robustness check
+                themeButtons.forEach(btn => {
+                    const btnMode = btn.dataset.themeMode;
+                    btn.classList.remove('ring-4', 'ring-blue-500', 'ring-indigo-500');
+                    if (btnMode === mode) {
+                        btn.classList.add('ring-4', 'ring-blue-500');
+                    }
+                });
+            }
+        }
+
+        function applyTextSize(size) {
+            const body = document.getElementById('app-body');
+            if (!body) return; // Null check added for safety
+
+            // Remove existing text-size classes
+            body.className = body.className.split(' ').filter(c => !c.startsWith('text-')).join(' ');
+
+            if (size === 'sm') {
+                body.classList.add('text-sm');
+            } else if (size === 'lg') {
+                body.classList.add('text-lg');
+            } else { // md
+                body.classList.add('text-base');
+            }
+
+            // Update button visual state
+            const sizeButtons = document.querySelectorAll('[data-text-size]');
+            if (sizeButtons.length > 0) { // Robustness check
+                 sizeButtons.forEach(btn => {
+                    const btnSize = btn.dataset.textSize;
+                    btn.classList.remove('ring-4', 'ring-blue-500', 'ring-indigo-500');
+                    if (btnSize === size) {
+                        btn.classList.add('ring-4', 'ring-blue-500');
+                    }
+                });
+            }
+        }
+
+        function changeContrast(mode) {
+            appState.contrastMode = mode;
+            applyTheme(mode);
+        }
+
+        function changeTextSize(size) {
+            appState.textSize = size;
+            applyTextSize(size);
+        }
+        
+        function changeView(newView) {
+            appState.view = newView;
+            document.querySelectorAll('.view-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            document.querySelectorAll('nav button').forEach(button => {
+                button.classList.remove('bg-indigo-600', 'text-white', 'shadow-indigo-500/50');
+                button.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+            });
+
+            document.getElementById(`view-${newView}`).classList.remove('hidden');
+            document.getElementById(`nav-${newView}`).classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+            document.getElementById(`nav-${newView}`).classList.add('bg-indigo-600', 'text-white', 'shadow-indigo-500/50');
+            
+            // Re-load content on view change if necessary (e.g., to reset quiz)
+            if (newView === 'lesson') {
+                loadModule(appState.module);
+            } else if (newView === 'quiz') {
+                loadQuizForModule(currentQuizModule);
+            }
+        }
+
+
+        // --- LESSON & QUIZ LOGIC ---
+
+        function loadModule(module) {
+            appState.module = module;
+            const lessonContentEl = document.getElementById('lesson-content');
+            
+            // Set lesson content
+            const content = LESSON_CONTENT[module][appState.language] || LESSON_CONTENT[module]['en'];
+            lessonContentEl.innerHTML = content;
+            
+            // Update button styles
+            document.querySelectorAll('#view-lesson button').forEach(btn => {
+                btn.classList.remove('bg-indigo-100', 'text-indigo-700');
+                btn.classList.add('bg-gray-200', 'text-gray-700');
+                if (btn.textContent.toLowerCase().includes(module)) {
+                     btn.classList.remove('bg-gray-200', 'text-gray-700');
+                     btn.classList.add('bg-indigo-100', 'text-indigo-700');
+                }
+            });
+        }
+
+        function setLanguage(lang) {
+            appState.language = lang;
+            document.getElementById('language-select').value = lang;
+            
+            // Reload the current module content in the new language
+            loadModule(appState.module); 
+
+            // Note: Quiz questions are not translated in this simple demo.
+        }
+
+        function loadQuizForModule(module) {
+            currentQuizModule = module;
+            currentQuizIndex = 0;
+            const quizContainer = document.getElementById('quiz-container');
+            
+            document.getElementById('quiz-message').textContent = '';
+
+            // Update button styles
+            document.querySelectorAll('#view-quiz button').forEach(btn => {
+                btn.classList.remove('bg-indigo-100', 'text-indigo-700');
+                btn.classList.add('bg-gray-200', 'text-gray-700');
+            });
+            document.getElementById(`quiz-module-${module}`).classList.remove('bg-gray-200', 'text-gray-700');
+            document.getElementById(`quiz-module-${module}`).classList.add('bg-indigo-100', 'text-indigo-700');
+
+
+            if (QUIZ_QUESTIONS[module].length === 0) {
+                quizContainer.innerHTML = `<p class="text-xl text-center text-red-600">No quiz available for ${module}.</p>`;
+                return;
+            }
+
+            renderQuizQuestion(QUIZ_QUESTIONS[module][currentQuizIndex]);
+        }
+
+        function renderQuizQuestion(questionData) {
+            const quizContainer = document.getElementById('quiz-container');
+            
+            let html = `
+                <h3 class="text-2xl font-bold mb-4 text-center">Question ${currentQuizIndex + 1} of ${QUIZ_QUESTIONS[currentQuizModule].length}</h3>
+                <div class="bg-indigo-50 p-6 rounded-xl border-l-4 border-indigo-500 shadow-md">
+                    <p class="text-xl font-semibold">${questionData.question}</p>
+                </div>
+                <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                    <!-- Options buttons will go here -->
+                </div>
+            `;
+            quizContainer.innerHTML = html;
+
+            const optionsContainer = document.getElementById('options-container');
+            
+            questionData.options.forEach(option => {
+                const button = document.createElement('button');
+                button.textContent = option.text;
+                button.className = 'large-touch-target bg-white text-gray-800 border-2 border-gray-300 hover:bg-indigo-100 shadow-md transition-all duration-150';
+                // Attach correct choice logic to the button's onclick
+                button.onclick = () => handleQuizSelection(option.correct);
+                optionsContainer.appendChild(button);
+            });
+        }
+
+        function handleQuizSelection(isCorrect) {
+            if (isCorrect) {
+                showFeedback("✅ Correct! Good job!", 'success');
+            } else {
+                showFeedback("❌ Incorrect. Try again!", 'error');
+            }
+
+            // Move to next question after a brief delay
+            setTimeout(() => {
+                currentQuizIndex++;
+                if (currentQuizIndex < QUIZ_QUESTIONS[currentQuizModule].length) {
+                    renderQuizQuestion(QUIZ_QUESTIONS[currentQuizModule][currentQuizIndex]);
+                } else {
+                    document.getElementById('quiz-container').innerHTML = `
+                        <p class="text-3xl font-bold text-center text-green-600">Quiz Complete!</p>
+                        <p class="text-xl text-center mt-4">You have finished the ${currentQuizModule} quiz. Great work!</p>
+                        <button onclick="loadQuizForModule('${currentQuizModule}')" class="large-touch-target w-full mt-6 bg-indigo-600 text-white hover:bg-indigo-700">Restart Quiz</button>
+                    `;
+                }
+            }, 1500);
+        }
+
+        function showFeedback(message, type) {
+            const quizMessage = document.getElementById('quiz-message');
+            quizMessage.textContent = message;
+            
+            if (type === 'success') {
+                quizMessage.className = 'mt-4 text-center text-3xl font-bold text-green-600';
+            } else if (type === 'error') {
+                quizMessage.className = 'mt-4 text-center text-3xl font-bold text-red-600';
+            } else { // info
+                quizMessage.className = 'mt-4 text-center text-3xl font-bold text-blue-600';
+            }
+
+            // Clear message after 3 seconds
+            setTimeout(() => {
+                quizMessage.textContent = '';
+                quizMessage.className = 'mt-4 text-center text-xl font-bold';
+            }, 3000);
+        }
+
+        function showSettingsFeedback(message, type) {
+            const settingsMessageEl = document.getElementById('settings-message');
+            settingsMessageEl.textContent = message;
+            
+            if (type === 'success') {
+                settingsMessageEl.className = 'mt-4 text-center font-semibold text-green-600';
+            } else if (type === 'error') {
+                settingsMessageEl.className = 'mt-4 text-center font-semibold text-red-600';
+            } else { // info
+                settingsMessageEl.className = 'mt-4 text-center font-semibold text-blue-600';
+            }
+
+            setTimeout(() => {
+                settingsMessageEl.textContent = '';
+                settingsMessageEl.className = 'mt-4 text-center font-semibold';
+            }, 5000);
+        }
+
+        // Learner Form Submission
+        document.addEventListener('submit', async (e) => {
+            if (e.target.id !== 'add-learner-form') return;
+            e.preventDefault();
+
+            if (!userId) {
+                showFormFeedback("Authentication not ready. Please wait.", 'error');
+                return;
+            }
+
+            const firstName = document.getElementById('first-name').value.trim();
+            const lastName = document.getElementById('last-name').value.trim();
+            const gradeLevel = parseInt(document.getElementById('grade-level').value, 10);
+
+            if (!firstName || !lastName || isNaN(gradeLevel)) {
+                showFormFeedback("Please fill out all fields correctly.", 'error');
+                return;
+            }
+
+            try {
+                const learnersColRef = collection(db, getLearnersCollectionPath(userId));
+                const newLearner = {
+                    firstName,
+                    lastName,
+                    gradeLevel,
+                    registeredBy: userId,
+                    createdAt: new Date().toISOString()
+                };
+                
+                const docRef = await addDoc(learnersColRef, newLearner);
+                showFormFeedback(`🎉 Learner registered! ID: ${docRef.id.substring(0, 5)}...`, 'success');
+                document.getElementById('add-learner-form').reset();
+            } catch (error) {
+                console.error("Error adding new learner:", error);
+                showFormFeedback("❌ Failed to register learner. Check console for details.", 'error');
+            }
+        });
+
+        function showFormFeedback(message, type) {
+            const formMessageEl = document.getElementById('learner-form-message');
+            formMessageEl.textContent = message;
+            
+            if (type === 'success') {
+                formMessageEl.className = 'mt-4 text-center font-semibold text-green-600';
+            } else if (type === 'error') {
+                formMessageEl.className = 'mt-4 text-center font-semibold text-red-600';
+            } else { // info
+                formMessageEl.className = 'mt-4 text-center font-semibold text-blue-600';
+            }
+
+            setTimeout(() => {
+                formMessageEl.textContent = '';
+                formMessageEl.className = 'mt-4 text-center font-semibold';
+            }, 5000);
+        }
+
+        // --- GLOBAL EXPOSURE FOR INLINE HANDLERS (FIX for ReferenceError) ---
+        
+        // Expose Firebase functions (less critical for inline, but safe practice)
+        window.initializeApp = initializeApp;
+        window.getAuth = getAuth;
+        window.signInAnonymously = signInAnonymously;
+        window.signInWithCustomToken = signInWithCustomToken;
+        window.getFirestore = getFirestore;
+        window.doc = doc;
+        window.getDoc = getDoc;
+        window.addDoc = addDoc;
+        window.setDoc = setDoc;
+        window.onSnapshot = onSnapshot;
+        window.collection = collection;
+        window.query = query;
+        window.where = where;
+        window.updateDoc = updateDoc;
+        window.deleteDoc = deleteDoc;
+        window.getDocs = getDocs;
+
+        // Expose Core App Functions (Critical for inline HTML event handlers)
+        window.loadModule = loadModule;
+        window.setLanguage = setLanguage;
+        window.changeView = changeView;
+        window.changeContrast = changeContrast;
+        window.changeTextSize = changeTextSize;
+        window.saveUserData = saveUserData;
+        window.applyTheme = applyTheme;
+        window.applyTextSize = applyTextSize;
+        window.handleQuizSelection = handleQuizSelection;
+        window.loadQuizForModule = loadQuizForModule;
+        window.deleteLearner = deleteLearner; // For management view
+
+        // --- INITIALIZATION ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("Meqenet Learner App DOM loaded. Starting Firebase setup.");
+            setupFirebase(); 
+            // Theme application now happens *after* Firebase auth/data load in loadUserData()
+            // which ensures DOM is ready and data is available for initial state.
+        });
+        
     </script>
 </body>
 </html>
