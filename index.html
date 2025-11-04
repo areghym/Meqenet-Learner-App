@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meqenet Learner & Management App</title>
+    <title>Meqenet Learner App</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Inter font family for a clean look -->
     <style>
         body { 
             font-family: 'Inter', sans-serif; 
@@ -21,22 +22,45 @@
             border-radius: 0.75rem;
             font-weight: bold;
             transition: all 0.2s;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 4px 6px, 0.05);
             cursor: pointer;
         }
-        /* Card styling for content sections */
+        /* Card styling for content sections - will be dynamically styled for contrast */
         .section-card {
-            background-color: white;
             padding: 1.5rem;
             border-radius: 1rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 4px 6px, 0.05);
         }
         /* Highlight for the currently selected letter/number */
         .current-item {
-            transform: scale(1.1);
-            border-color: #4f46e5; /* indigo-600 */
+            transform: scale(1.02);
+            transition: all 0.3s ease-in-out;
+        }
+        /* Style for input focus */
+        .input-style:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.5);
+        }
+        /* Mobile Navbar fixes */
+        @media (max-width: 767px) {
+            #nav-bar button {
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+                font-size: 0.75rem; /* text-xs */
+            }
         }
     </style>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, addDoc, deleteDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Expose Firebase functions and objects globally for use in the script below
+        window.firebase = {
+            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+            getFirestore, doc, setDoc, onSnapshot, collection, query, addDoc, deleteDoc, setLogLevel
+        };
+    </script>
     <script>
         // --- Global State and Initialization ---
         // Global variables for Firebase access (MUST be defined)
@@ -46,42 +70,72 @@
         
         // App State
         const appState = {
-            module: 'literacy', // literacy, numeracy, life_skills
+            // Vocabulary is the default module
+            module: 'vocabulary', // literacy, numeracy, life_skills, vocabulary
             language: 'english', // english, amharic
             contrastMode: 'normal', // normal, high_contrast
             textSize: 'medium', // small, medium, large
             currentView: 'lesson', // lesson, quiz, management, settings
             currentLiteracyIndex: 0,
             currentNumeracyIndex: 0,
+            currentLifeSkillsIndex: 0,
+            currentVocabularyIndex: 0,
+            voiceName: '', // Stored voice name
+            voiceRate: 0.6,
+            voicePitch: 1.0,
             learnerData: [] // Array to hold Firestore learner documents
         };
 
         // --- Content Definitions (Lessons and Quizzes) ---
+        // Array of letters A-Z for Literacy
+        const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
+
+        // Array of numbers 1-100 for Numeracy
+        const NUMBERS = Array.from({ length: 100 }, (_, i) => i + 1);
+
         const CONTENT = {
             literacy: {
                 title: { english: "Literacy: The Alphabet (A-Z)", amharic: "የአንብቦ መጻፍ ትምህርት: ፊደላት (ከA-Z)" },
-                items: [
-                    { value: 'A', example: { english: 'Apple', amharic: 'አፕል' }, quiz: { question: 'What starts with A?', options: [{ text: 'Ball', correct: false }, { text: 'Ant', correct: true }, { text: 'Cat', correct: false }] } },
-                    { value: 'B', example: { english: 'Ball', amharic: 'ኳስ' }, quiz: { question: 'What is B?', options: [{ text: 'Ball', correct: true }, { text: 'Dog', correct: false }, { text: 'Egg', correct: false }] } },
-                    { value: 'C', example: { english: 'Cat', amharic: 'ድመት' }, quiz: { question: 'C is for?', options: [{ text: 'Fan', correct: false }, { text: 'Cat', correct: true }, { text: 'Goat', correct: false }] } },
-                    { value: 'D', example: { english: 'Dog', amharic: 'ውሻ' }, quiz: { question: 'Which is D?', options: [{ text: 'Hat', correct: false }, { text: 'Dog', correct: true }, { text: 'Ink', correct: false }] } },
-                ].concat(Array.from({ length: 22 }, (_, i) => {
-                    const charCode = 'E'.charCodeAt(0) + i;
-                    const char = String.fromCharCode(charCode);
-                    return { value: char, example: { english: `Example for ${char}`, amharic: `${char} ምሳሌ` }, quiz: { question: `Quiz for ${char}?`, options: [{ text: `Option 1`, correct: false }, { text: char, correct: true }, { text: `Option 3`, correct: false }] } };
-                }))
+                items: ALPHABET.map((letter, index) => {
+                    // Simple example and quiz generation for all 26 letters
+                    const baseWord = getExampleWordForLetter(letter); // Helper function to provide a mock word
+                    return {
+                        value: letter, 
+                        example: { 
+                            english: `${baseWord.english} starts with ${letter}.`, 
+                            amharic: `${baseWord.amharic} በ${letter} ይጀምራል።` 
+                        },
+                        quiz: { 
+                            question: `Which word starts with ${letter}?`, 
+                            options: [
+                                { text: "Cat", correct: (letter === 'C') }, 
+                                { text: baseWord.english, correct: true }, 
+                                { text: "Dog", correct: (letter === 'D') }
+                            ].sort(() => Math.random() - 0.5) // Randomize options
+                        }
+                    };
+                })
             },
             numeracy: {
-                title: { english: "Numeracy: Numbers (1-10)", amharic: "የቁጥር ትምህርት: ቁጥሮች (ከ1-10)" },
-                items: Array.from({ length: 10 }, (_, i) => ({
-                    value: (i + 1).toString(), 
-                    example: { english: `You have ${i + 1} fingers.`, amharic: `${i + 1} ጣቶች አሉዎት።` },
-                    quiz: { question: `What number is ${i + 1}?`, options: [
-                        { text: (i).toString(), correct: false }, 
-                        { text: (i + 1).toString(), correct: true }, 
-                        { text: (i + 2).toString(), correct: false }
-                    ]}
-                }))
+                title: { english: "Numeracy: Numbers (1-100)", amharic: "የቁጥር ትምህርት: ቁጥሮች (ከ1-100)" },
+                // Dynamically generate 100 items for 1 through 100
+                items: NUMBERS.map(number => {
+                    const incorrect1 = (number === 1 ? number + 2 : number - 1).toString(); // Ensure option 1 is not 0
+                    const incorrect2 = (number + 1).toString();
+                    
+                    return {
+                        value: number.toString(), 
+                        example: { english: `This is the number ${number}.`, amharic: `ይህ ቁጥር ${number} ነው።` },
+                        quiz: { 
+                            question: `Which number is ${number}?`, 
+                            options: [
+                                { text: incorrect1, correct: false }, 
+                                { text: number.toString(), correct: true }, 
+                                { text: incorrect2, correct: false }
+                            ].sort(() => Math.random() - 0.5)
+                        }
+                    }
+                })
             },
             life_skills: {
                 title: { english: "Life Skills: Daily Routines", amharic: "የህይወት ክህሎቶች: የዕለት ተዕለት ተግባራት" },
@@ -89,9 +143,44 @@
                     { value: 'Wake Up', example: { english: 'Start the day!', amharic: 'ቀኑን ይጀምሩ!' }, quiz: { question: 'When do you brush your teeth?', options: [{ text: 'Before bed', correct: true }, { text: 'Before waking up', correct: false }] } },
                     { value: 'Eat Food', example: { english: 'Time to eat!', amharic: 'የመብላት ጊዜ!' }, quiz: { question: 'Why do we eat?', options: [{ text: 'For energy', correct: true }, { text: 'To sleep', correct: false }] } },
                     { value: 'Play', example: { english: 'Have fun!', amharic: 'ይዝናኑ!' }, quiz: { question: 'Is playing good for learning?', options: [{ text: 'Yes', correct: true }, { text: 'No', correct: false }] } },
+                    { value: 'Wash Hands', example: { english: 'Use soap and water.', amharic: 'ሳሙናና ውሃ ተጠቀም።' }, quiz: { question: 'When should you wash your hands?', options: [{ text: 'After touching dirt', correct: true }, { text: 'Only when you bathe', correct: false }] } },
+                    { value: 'Help Others', example: { english: 'Sharing is caring!', amharic: 'መጋራት መተሳሰብ ነው።' }, quiz: { question: 'If a friend drops their book, what should you do?', options: [{ text: 'Ignore it', correct: false }, { text: 'Help them pick it up', correct: true }] } },
+                    { value: 'Safe Walking', example: { english: 'Look both ways before crossing.', amharic: 'መንገድ ከማቋረጥ በፊት ሁለቱንም ተመልከት።' }, quiz: { question: 'Which color light means STOP?', options: [{ text: 'Green', correct: false }, { text: 'Red', correct: true }] } },
+                ]
+            },
+            vocabulary: {
+                title: { english: "Vocabulary: Essential Words (100)", amharic: "ቃላት: አስፈላጊ ቃላት (100)" },
+                items: [
+                    { value: 'the', example: { english: 'The sun is hot.', amharic: 'ፀሐይ ትኩስ ነች።' }, quiz: { question: 'Spell the word TH...', options: [{ text: 'The', correct: true }, { text: 'To', correct: false }, { text: 'Tree', correct: false }] } },
+                    { value: 'is', example: { english: 'The dog is big.', amharic: 'ውሻው ትልቅ ነው።' }, quiz: { question: 'Which word means "existence"?', options: [{ text: 'It', correct: false }, { text: 'Is', correct: true }, { text: 'In', correct: false }] } },
+                    { value: 'and', example: { english: 'Mom and Dad.', amharic: 'እናትና አባት።' }, quiz: { question: 'What links two ideas?', options: [{ text: 'Or', correct: false }, { text: 'And', correct: true }, { text: 'But', correct: false }] } },
+                    { value: 'to', example: { english: 'Go to school.', amharic: 'ወደ ትምህርት ቤት ሂድ።' }, quiz: { question: 'Which word means direction?', options: [{ text: 'Two', correct: false }, { text: 'To', correct: true }, { text: 'Of', correct: false }] } },
+                    { value: 'a', example: { english: 'A red flower.', amharic: 'ቀይ አበባ።' }, quiz: { question: 'Which word is often used before a noun?', options: [{ text: 'I', correct: false }, { text: 'A', correct: true }, { text: 'He', correct: false }] } },
+                    // Placeholder items to reach 100 words in a real app
+                    ...Array.from({ length: 95 }, (_, i) => {
+                        const word = `word${i + 6}`;
+                        return { value: word, example: { english: `A very common word: ${word}.`, amharic: `አንድ የጋራ ቃል: ${word}።` }, quiz: { question: `Which is ${word}?`, options: [{ text: 'Test', correct: false }, { text: word, correct: true }, { text: 'Case', correct: false }] } };
+                    })
                 ]
             }
         };
+
+        // Simple helper function for mock English/Amharic words for A-Z
+        function getExampleWordForLetter(letter) {
+            const words = {
+                A: { english: 'Apple', amharic: 'አፕል' }, B: { english: 'Ball', amharic: 'ኳስ' }, C: { english: 'Cat', amharic: 'ድመት' }, 
+                D: { english: 'Dog', amharic: 'ውሻ' }, E: { english: 'Egg', amharic: 'እንቁላል' }, F: { english: 'Fish', amharic: 'ዓሳ' },
+                G: { english: 'Goat', amharic: 'ፍየል' }, H: { english: 'House', amharic: 'ቤት' }, I: { english: 'Ice', amharic: 'በረዶ' },
+                J: { english: 'Jar', amharic: 'ጆግ' }, K: { english: 'Key', amharic: 'ቁልፍ' }, L: { english: 'Lion', amharic: 'አንበሳ' },
+                M: { english: 'Map', amharic: 'ካርታ' }, N: { english: 'Nest', amharic: 'ጎጆ' }, O: { english: 'Owl', amharic: 'ጉጉት' },
+                P: { english: 'Pen', amharic: 'ብዕር' }, Q: { english: 'Queen', amharic: 'ንግሥት' }, R: { english: 'Rat', amharic: 'አይጥ' },
+                S: { english: 'Sun', amharic: 'ፀሐይ' }, T: { english: 'Tree', amharic: 'ዛፍ' }, U: { english: 'Umbrella', amharic: 'ጃንጥላ' },
+                V: { english: 'Vase', amharic: 'አበባ ማስቀመጫ' }, W: { english: 'Water', amharic: 'ውሃ' }, X: { english: 'Xylophone', amharic: 'ክሲሎፎን' },
+                Y: { english: 'Yacht', amharic: 'ጀልባ' }, Z: { english: 'Zebra', amharic: 'ሜዳ አህያ' }
+            };
+            return words[letter] || { english: 'Unknown', amharic: 'የማይታወቅ' };
+        }
+
 
         const TEXT = {
             nav: {
@@ -100,9 +189,10 @@
                 management: { english: 'Learner Management', amharic: 'ተማሪ አስተዳደር' },
                 settings: { english: 'Settings', amharic: 'ቅንብሮች' },
             },
-            literacy_module: { english: 'Literacy Module', amharic: 'የአንብቦ መጻፍ ሞዱል' },
-            numeracy_module: { english: 'Numeracy Module', amharic: 'የቁጥር ሞዱል' },
+            literacy_module: { english: 'Literacy Module (A-Z)', amharic: 'የአንብቦ መጻፍ ሞዱል (A-Z)' },
+            numeracy_module: { english: 'Numeracy Module (1-100)', amharic: 'የቁጥር ሞዱል (1-100)' },
             life_skills_module: { english: 'Life Skills Module', amharic: 'የህይወት ክህሎት ሞዱል' },
+            vocabulary_module: { english: 'Vocabulary Module (100 Words)', amharic: 'የቃላት ሞዱል (100 ቃላት)' },
             next: { english: 'Next', amharic: 'ቀጥሎ' },
             previous: { english: 'Previous', amharic: 'ቀደም ሲል' },
             speak_word: { english: 'Speak Word', amharic: 'ቃሉን ተናገር' },
@@ -129,31 +219,21 @@
             small: { english: 'Small', amharic: 'ትንሽ' },
             medium: { english: 'Medium', amharic: 'መካከለኛ' },
             large: { english: 'Large', amharic: 'ትልቅ' },
-            delete: { english: 'Delete', amharic: 'አጥፋ' }
+            delete: { english: 'Delete', amharic: 'አጥፋ' },
+            user_id: { english: 'Your Session ID:', amharic: 'የእርስዎ መለያ ቁጥር:' }
         };
 
         // --- Firebase Setup ---
         let db, auth;
         let userId = null; 
         let authReady = false;
-
-        // Utility function to convert Amharic text to its English phonetic equivalent for TTS if necessary
-        function ttsPhoneticAmharic(text) {
-            // This is a complex problem, but for a simplified demo, we can map common Amharic characters.
-            // A real solution would use a dedicated TTS model or SSML.
-            const phoneticMap = {
-                'አ': 'A', 'በ': 'Be', 'ገ': 'Ge', 'ደ': 'De', 'የ': 'Ye', 'ር': 'R', 'ብ': 'B', 'ስ': 'S', 'ት': 'T', 'ም': 'M', 'ል': 'L', 'ዎ': 'Wo', 'ጥ': 'T', 'ቁ': 'Ku', 'ሽ': 'Sh', 'ክ': 'K', 'ች': 'Ch', 'ህ': 'H', 'ይ': 'Y' 
-            };
-            let phonetic = text;
-            for (const amh in phoneticMap) {
-                phonetic = phonetic.replace(new RegExp(amh, 'g'), phoneticMap[amh]);
-            }
-            return phonetic;
-        }
+        let settingsLoaded = false;
+        let unsubscribeLearners = null;
+        let unsubscribeSettings = null;
 
         // --- Internationalization (i18n) Helper ---
         function t(key) {
-            return TEXT[key][appState.language] || TEXT[key]['english'];
+            return TEXT[key] ? (TEXT[key][appState.language] || TEXT[key]['english']) : key;
         }
 
         function getLessonContent() {
@@ -166,8 +246,9 @@
             } else if (appState.module === 'numeracy') {
                 index = appState.currentNumeracyIndex;
             } else if (appState.module === 'life_skills') {
-                // Life skills can also use an index
                 index = appState.currentLifeSkillsIndex || 0;
+            } else if (appState.module === 'vocabulary') {
+                index = appState.currentVocabularyIndex || 0;
             }
             return moduleContent.items[index];
         }
@@ -202,24 +283,26 @@
             // Clear existing options
             voiceSelect.innerHTML = '';
             
-            // Filter for English and Amharic voices if possible, otherwise use all.
-            const filteredVoices = availableVoices.filter(voice => 
-                voice.lang.startsWith('en-') || voice.lang.startsWith('am-')
-            );
-
             // Add an 'Auto' option
             const defaultOption = document.createElement('option');
             defaultOption.textContent = 'Auto (Browser Default)';
             defaultOption.value = '';
             voiceSelect.appendChild(defaultOption);
 
-            // Add filtered or all voices
+            // Filter for English and Amharic voices if possible, otherwise use all.
+            const filteredVoices = availableVoices.filter(voice => 
+                voice.lang.startsWith('en-') || voice.lang.startsWith('am-') || voice.default
+            );
+
             (filteredVoices.length > 0 ? filteredVoices : availableVoices).forEach(voice => {
                 const option = document.createElement('option');
                 option.textContent = `${voice.name} (${voice.lang})`;
                 option.value = voice.name;
-                // Pre-select a reasonable default if available, otherwise just use 'Auto'
-                if (voice.default && !appState.voiceName) {
+                
+                // Pre-select saved voice or a default
+                if (voice.name === appState.voiceName) {
+                    option.selected = true;
+                } else if (voice.default && !appState.voiceName) {
                     appState.voiceName = voice.name;
                     option.selected = true;
                 }
@@ -233,7 +316,6 @@
                 return;
             }
             
-            // Clear any existing utterance
             currentSynth.cancel(); 
 
             const utterance = new SpeechSynthesisUtterance(text);
@@ -244,23 +326,36 @@
                 utterance.voice = availableVoices.find(voice => voice.name === voiceName) || null;
             }
 
-            utterance.rate = parseFloat(document.getElementById('voice-rate').value) || 0.6; // Slower, clearer rate
-            utterance.pitch = parseFloat(document.getElementById('voice-pitch').value) || 1.0; 
+            utterance.rate = appState.voiceRate;
+            utterance.pitch = appState.voicePitch;
             
             // Set language hint based on app language
             if (appState.language === 'amharic') {
-                 // For Amharic, use the content in Amharic and hint the lang if possible
+                 // Hint Amharic language code, hoping the voice engine supports it
                  utterance.lang = 'am-ET';
             } else {
                  utterance.lang = 'en-US';
             }
 
-
-            // Speak the text
             currentSynth.speak(utterance);
         }
 
         // --- UI Rendering Functions ---
+        function getCardClasses(baseBg, baseBorder) {
+            if (appState.contrastMode === 'high_contrast') {
+                return `section-card bg-black border-4 border-yellow-300 text-yellow-300 shadow-yellow-700/50`;
+            } else {
+                return `section-card ${baseBg} ${baseBorder} text-gray-900`;
+            }
+        }
+
+        function getButtonClasses(baseBg, hoverBg, activeBg, text) {
+            if (appState.contrastMode === 'high_contrast') {
+                return `large-touch-target bg-black border-2 border-yellow-300 text-yellow-300 hover:bg-yellow-900 active:bg-yellow-800 shadow-none`;
+            } else {
+                return `large-touch-target ${baseBg} hover:${hoverBg} active:${activeBg} ${text} shadow-lg`;
+            }
+        }
 
         function renderLessonView() {
             const content = getLessonContent();
@@ -271,9 +366,10 @@
                 return;
             }
 
-            // Get the current index for the navigation logic
             let currentIndex = 0;
             let totalItems = 0;
+            
+            // Determine current index and total items based on the active module
             if (appState.module === 'literacy') {
                 currentIndex = appState.currentLiteracyIndex;
                 totalItems = CONTENT.literacy.items.length;
@@ -283,34 +379,42 @@
             } else if (appState.module === 'life_skills') {
                 currentIndex = appState.currentLifeSkillsIndex || 0;
                 totalItems = CONTENT.life_skills.items.length;
+            } else if (appState.module === 'vocabulary') {
+                currentIndex = appState.currentVocabularyIndex || 0;
+                totalItems = CONTENT.vocabulary.items.length;
             }
 
             const currentTitle = CONTENT[appState.module].title[appState.language];
             const currentItem = content.value;
             const currentExample = content.example[appState.language];
             
+            const mainCardClasses = getCardClasses('bg-white', 'border-4 border-indigo-500');
+            const speakButtonClasses = getButtonClasses('bg-green-500', 'bg-green-600', 'bg-green-700', 'text-white');
+            const prevButtonClasses = getButtonClasses('bg-gray-200', 'bg-gray-300', 'bg-gray-400', 'text-gray-800');
+            const nextButtonClasses = getButtonClasses('bg-indigo-500', 'bg-indigo-600', 'bg-indigo-700', 'text-white');
+
             lessonView.innerHTML = `
-                <div class="section-card bg-indigo-50 border border-indigo-200 text-center mb-6">
-                    <h3 class="text-2xl md:text-3xl font-bold text-indigo-700 mb-2">${currentTitle}</h3>
-                    <p class="text-gray-600">${currentIndex + 1} / ${totalItems}</p>
+                <div class="${getCardClasses('bg-indigo-50', 'border border-indigo-200')} text-center mb-6">
+                    <h3 class="text-2xl md:text-3xl font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-700'} mb-2">${currentTitle}</h3>
+                    <p class="text-sm ${appState.contrastMode === 'high_contrast' ? 'text-yellow-500' : 'text-gray-600'}">${currentIndex + 1} / ${totalItems}</p>
                 </div>
 
-                <div class="text-center p-8 bg-white border-4 border-indigo-500 rounded-2xl shadow-xl transition-all current-item">
-                    <div class="${appState.textSize === 'large' ? 'text-8xl' : appState.textSize === 'medium' ? 'text-7xl' : 'text-6xl'} font-extrabold text-indigo-900 mb-6">${currentItem}</div>
-                    <p class="text-2xl font-semibold text-gray-700 mb-6">${t('example')} <span class="font-extrabold text-indigo-800">${currentExample}</span></p>
+                <div class="text-center p-8 ${mainCardClasses} current-item">
+                    <div class="${appState.textSize === 'large' ? 'text-8xl' : appState.textSize === 'medium' ? 'text-7xl' : 'text-6xl'} font-extrabold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-900'} mb-6">${currentItem}</div>
+                    <p class="text-2xl font-semibold ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'} mb-6">${t('example')} <span class="font-extrabold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-800'}">${currentExample}</span></p>
                     
-                    <button id="speak-button" class="large-touch-target bg-green-500 hover:bg-green-600 active:bg-green-700 text-white shadow-lg w-full max-w-sm mx-auto flex items-center justify-center">
+                    <button id="speak-button" class="${speakButtonClasses} w-full max-w-sm mx-auto flex items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 mr-3"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a4.99 4.99 0 0 1 0 7.07"></path></svg>
                         ${t('speak_word')}
                     </button>
                 </div>
 
                 <div class="flex justify-between mt-8">
-                    <button id="prev-button" class="large-touch-target bg-gray-200 hover:bg-gray-300 active:bg-gray-400 text-gray-800 flex-1 mr-4 ${currentIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''}" ${currentIndex === 0 ? 'disabled' : ''}>
+                    <button id="prev-button" class="${prevButtonClasses} flex-1 mr-4 ${currentIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''}" ${currentIndex === 0 ? 'disabled' : ''}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 mr-2"><polyline points="15 18 9 12 15 6"></polyline></svg>
                         ${t('previous')}
                     </button>
-                    <button id="next-button" class="large-touch-target bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white flex-1 ml-4 ${currentIndex === totalItems - 1 ? 'opacity-50 cursor-not-allowed' : ''}" ${currentIndex === totalItems - 1 ? 'disabled' : ''}>
+                    <button id="next-button" class="${nextButtonClasses} flex-1 ml-4 ${currentIndex === totalItems - 1 ? 'opacity-50 cursor-not-allowed' : ''}" ${currentIndex === totalItems - 1 ? 'disabled' : ''}>
                         ${t('next')}
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 ml-2"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </button>
@@ -328,20 +432,22 @@
             const quizView = document.getElementById('quiz-view');
             
             if (!content || !content.quiz) {
-                quizView.innerHTML = `<p class="text-center text-xl text-gray-500">${t('normal')}</p>`;
+                quizView.innerHTML = `<p class="text-center text-xl ${appState.contrastMode === 'high_contrast' ? 'text-yellow-500' : 'text-gray-500'}">${t('normal')}</p>`;
                 return;
             }
 
             const question = content.quiz.question;
             const options = content.quiz.options;
+            
+            const questionCardClasses = getCardClasses('bg-white', 'border-2 border-yellow-500');
 
             quizView.innerHTML = `
-                <div class="section-card bg-yellow-50 border border-yellow-200 text-center mb-6">
-                    <h3 class="text-2xl md:text-3xl font-bold text-yellow-700">${CONTENT[appState.module].title[appState.language]} Quiz</h3>
+                <div class="${getCardClasses('bg-yellow-50', 'border border-yellow-200')} text-center mb-6">
+                    <h3 class="text-2xl md:text-3xl font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-yellow-700'}">${CONTENT[appState.module].title[appState.language]} Quiz</h3>
                 </div>
 
-                <div class="text-center p-8 bg-white rounded-2xl shadow-lg border-2 border-yellow-500">
-                    <p class="text-2xl md:text-3xl font-semibold text-gray-700 mb-8">${t('quiz_question')} <span class="font-extrabold text-yellow-800">${question}</span></p>
+                <div class="text-center p-8 ${questionCardClasses}">
+                    <p class="text-2xl md:text-3xl font-semibold ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'} mb-8">${t('quiz_question')} <span class="font-extrabold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-yellow-800'}">${question}</span></p>
                     
                     <div id="quiz-options" class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <!-- Options will be added here by JS -->
@@ -355,7 +461,13 @@
             options.forEach(option => {
                 const button = document.createElement('button');
                 button.textContent = option.text;
-                button.className = 'large-touch-target bg-indigo-100 hover:bg-indigo-200 active:bg-indigo-300 text-indigo-800 shadow-md';
+                let optionClasses = getButtonClasses('bg-indigo-100', 'bg-indigo-200', 'bg-indigo-300', 'text-indigo-800');
+                
+                if (appState.contrastMode === 'high_contrast') {
+                    optionClasses = optionClasses.replace('text-indigo-800', 'text-yellow-300');
+                }
+                
+                button.className = optionClasses;
                 button.onclick = () => handleQuizSelection(option.correct);
                 optionsContainer.appendChild(button);
             });
@@ -369,20 +481,24 @@
             
             if (appState.learnerData.length === 0) {
                 learnerListEl.innerHTML = `
-                    <p class="text-center text-gray-500 italic p-4">${appState.authReady ? 'No learners registered yet.' : 'Loading learners...'}</p>
+                    <p class="text-center ${appState.contrastMode === 'high_contrast' ? 'text-yellow-500' : 'text-gray-500'} italic p-4">${authReady ? 'No learners registered yet.' : 'Loading learners...'}</p>
                 `;
             } else {
                 appState.learnerData.forEach(learner => {
                     const listItem = document.createElement('div');
-                    listItem.className = 'flex items-center justify-between p-4 mb-2 bg-gray-50 border border-gray-200 rounded-lg shadow-sm';
+                    const deleteButtonClasses = appState.contrastMode === 'high_contrast' ? 
+                        'text-red-500 hover:text-red-300 large-touch-target p-2 bg-black border border-yellow-300 rounded-full transition-colors duration-150' :
+                        'text-red-500 hover:text-red-700 large-touch-target p-2 bg-white rounded-full transition-colors duration-150';
+
+                    listItem.className = `flex items-center justify-between p-4 mb-2 ${appState.contrastMode === 'high_contrast' ? 'bg-gray-900 border-yellow-300' : 'bg-gray-50 border-gray-200'} border rounded-lg shadow-sm`;
                     
                     listItem.innerHTML = `
                         <div>
-                            <p class="text-lg font-semibold text-indigo-800">${learner.firstName} ${learner.lastName}</p>
-                            <p class="text-sm text-gray-600">Grade: ${learner.grade}</p>
-                            <p class="text-xs text-gray-500">ID: <span class="font-mono bg-gray-200 px-1 rounded">${learner.id.substring(0, 8)}...</span></p>
+                            <p class="text-lg font-semibold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-800'}">${learner.firstName} ${learner.lastName}</p>
+                            <p class="text-sm ${appState.contrastMode === 'high_contrast' ? 'text-yellow-500' : 'text-gray-600'}">Grade: ${learner.grade}</p>
+                            <p class="text-xs ${appState.contrastMode === 'high_contrast' ? 'text-gray-400' : 'text-gray-500'}">ID: <span class="font-mono ${appState.contrastMode === 'high_contrast' ? 'bg-gray-700' : 'bg-gray-200'} px-1 rounded">${learner.id}</span></p>
                         </div>
-                        <button onclick="deleteLearner('${learner.id}')" class="text-red-500 hover:text-red-700 large-touch-target p-2 bg-white rounded-full transition-colors duration-150">
+                        <button onclick="window.deleteLearner('${learner.id}')" class="${deleteButtonClasses}">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
                             <span class="sr-only">${t('delete')}</span>
                         </button>
@@ -399,9 +515,23 @@
             document.getElementById('language-select').value = appState.language;
             document.getElementById('contrast-select').value = appState.contrastMode;
             document.getElementById('text-size-select').value = appState.textSize;
-            document.getElementById('voice-rate').value = appState.voiceRate || 0.6;
-            document.getElementById('voice-pitch').value = appState.voicePitch || 1.0;
-            // The voice-select is handled by populateVoiceSelect() after TTS init
+            document.getElementById('voice-rate').value = appState.voiceRate;
+            document.getElementById('voice-pitch').value = appState.voicePitch;
+            
+            // Update rate/pitch display
+            document.getElementById('rate-display').textContent = appState.voiceRate.toFixed(1);
+            document.getElementById('pitch-display').textContent = appState.voicePitch.toFixed(1);
+
+            // Re-populate voice select to ensure saved voice is selected
+            populateVoiceSelect();
+        }
+
+        function renderAll() {
+            updateAllText();
+            applyTheme(appState.contrastMode); // Applies theme and re-renders current view
+            
+            // Also update the User ID display
+            document.getElementById('user-id-display').textContent = userId ? `${t('user_id')} ${userId}` : 'Authenticating...';
         }
 
 
@@ -427,12 +557,24 @@
             // Update active state of nav buttons
             const navButtons = document.querySelectorAll('#nav-bar button');
             navButtons.forEach(button => {
-                if (button.dataset.view === newView) {
-                    button.classList.remove('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
-                    button.classList.add('bg-indigo-500', 'text-white', 'shadow-md');
-                } else {
-                    button.classList.remove('bg-indigo-500', 'text-white', 'shadow-md');
-                    button.classList.add('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+                const isSelected = button.dataset.view === newView;
+                button.classList.toggle('bg-indigo-500', isSelected);
+                button.classList.toggle('text-white', isSelected);
+                button.classList.toggle('shadow-md', isSelected);
+                
+                button.classList.toggle('bg-gray-100', !isSelected);
+                button.classList.toggle('text-gray-600', !isSelected);
+                button.classList.toggle('hover:bg-gray-200', !isSelected);
+
+                // High contrast overrides for nav
+                if (appState.contrastMode === 'high_contrast') {
+                    if (isSelected) {
+                        button.classList.remove('bg-indigo-500', 'text-white');
+                        button.classList.add('bg-yellow-300', 'text-black');
+                    } else {
+                        button.classList.remove('bg-gray-100', 'text-gray-600');
+                        button.classList.add('bg-black', 'text-yellow-300', 'border', 'border-yellow-300');
+                    }
                 }
             });
         }
@@ -442,14 +584,15 @@
             
             // Reset index based on module
             if (moduleName === 'literacy') {
-                // If index doesn't exist, set to 0
                 appState.currentLiteracyIndex = appState.currentLiteracyIndex || 0;
             } else if (moduleName === 'numeracy') {
                 appState.currentNumeracyIndex = appState.currentNumeracyIndex || 0;
             } else if (moduleName === 'life_skills') {
                 appState.currentLifeSkillsIndex = appState.currentLifeSkillsIndex || 0;
+            } else if (moduleName === 'vocabulary') {
+                appState.currentVocabularyIndex = appState.currentVocabularyIndex || 0;
             }
-
+            saveSettings();
             // Re-render the current view to show new module content
             if (appState.currentView === 'lesson') renderLessonView();
             if (appState.currentView === 'quiz') renderQuizView();
@@ -457,15 +600,22 @@
 
         function setLanguage(lang) {
             appState.language = lang;
+            saveSettings();
             // Full re-render needed to update all text elements
-            updateAllText();
-            // Re-render current view content
-            if (appState.currentView === 'lesson') renderLessonView();
-            if (appState.currentView === 'quiz') renderQuizView();
+            renderAll();
         }
 
         function navigateLesson(direction) {
             let currentIndexKey = `current${appState.module.charAt(0).toUpperCase() + appState.module.slice(1)}Index`;
+            
+            // Override for vocabulary module (since it's not simply 'currentVocabularyIndex')
+            if (appState.module === 'vocabulary') {
+                currentIndexKey = 'currentVocabularyIndex';
+            }
+            if (appState.module === 'life_skills') {
+                currentIndexKey = 'currentLifeSkillsIndex';
+            }
+
             const totalItems = CONTENT[appState.module].items.length;
             
             if (direction === 'next' && appState[currentIndexKey] < totalItems - 1) {
@@ -473,17 +623,44 @@
             } else if (direction === 'prev' && appState[currentIndexKey] > 0) {
                 appState[currentIndexKey]--;
             }
+            saveSettings();
             renderLessonView();
         }
 
         function handleQuizSelection(isCorrect) {
             const quizMessage = document.getElementById('quiz-message');
+            // Disable options temporarily
+            document.querySelectorAll('#quiz-options button').forEach(btn => btn.disabled = true);
+            
             if (isCorrect) {
                 showFeedback(t('correct'), 'success');
                 // Auto-advance to the next lesson item after correct answer
-                setTimeout(() => navigateLesson('next'), 2000);
+                setTimeout(() => {
+                    // Check if we are at the end of the module
+                    let currentIndexKey = `current${appState.module.charAt(0).toUpperCase() + appState.module.slice(1)}Index`;
+                    if (appState.module === 'vocabulary' || appState.module === 'life_skills') {
+                         // These modules require manual key setting due to the name structure
+                         currentIndexKey = `current${appState.module.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('')}Index`;
+                    }
+                    
+                    const totalItems = CONTENT[appState.module].items.length;
+                    
+                    if (appState[currentIndexKey] < totalItems - 1) {
+                        navigateLesson('next');
+                        changeView('lesson'); // Go back to lesson view for the next item
+                    } else {
+                        // All items in the module completed (or quiz completed for the last item)
+                        showFeedback(`${t('correct')} Module Complete!`, 'success');
+                    }
+                    
+                    document.querySelectorAll('#quiz-options button').forEach(btn => btn.disabled = false);
+                }, 2000);
             } else {
                 showFeedback(t('incorrect'), 'error');
+                setTimeout(() => {
+                    quizMessage.textContent = '';
+                    document.querySelectorAll('#quiz-options button').forEach(btn => btn.disabled = false);
+                }, 1500);
             }
         }
 
@@ -491,46 +668,50 @@
             const quizMessage = document.getElementById('quiz-message');
             quizMessage.textContent = message;
             
+            let colorClass = 'text-blue-600';
             if (type === 'success') {
-                quizMessage.className = 'mt-8 text-center text-3xl font-bold text-green-600';
+                colorClass = 'text-green-600';
             } else if (type === 'error') {
-                quizMessage.className = 'mt-8 text-center text-3xl font-bold text-red-600';
-            } else { // info
-                quizMessage.className = 'mt-8 text-center text-3xl font-bold text-blue-600';
+                colorClass = 'text-red-600';
+            }
+            
+            if (appState.contrastMode === 'high_contrast') {
+                // Use bright yellow for high contrast feedback
+                colorClass = 'text-yellow-300';
             }
 
-            // Clear message after 3 seconds, but not if it's a success/error state to allow user to see it
-            if (type !== 'success' && type !== 'error') {
-                setTimeout(() => {
-                    quizMessage.textContent = '';
-                    quizMessage.className = 'mt-8 text-center text-xl font-bold';
-                }, 3000);
-            }
+            quizMessage.className = `mt-8 text-center text-3xl font-bold ${colorClass}`;
         }
 
         function applyTheme(mode) {
             appState.contrastMode = mode;
+            saveSettings();
             const body = document.getElementById('app-body');
-            const navBar = document.getElementById('nav-bar');
             
             if (mode === 'high_contrast') {
-                body.className = 'bg-black text-yellow-300 min-h-screen';
-                navBar.classList.remove('bg-white');
-                navBar.classList.add('bg-gray-900');
+                body.className = 'bg-black text-yellow-300 min-h-screen transition-colors duration-300';
             } else { // normal
-                body.className = 'bg-gray-50 text-gray-900 min-h-screen';
-                navBar.classList.remove('bg-gray-900');
-                navBar.classList.add('bg-white');
+                body.className = 'bg-gray-50 text-gray-900 min-h-screen transition-colors duration-300';
             }
-            // Re-render all views to update color changes on internal elements
-            updateAllText();
+            
+            // Re-render all parts that depend on contrast
             changeView(appState.currentView);
         }
 
         function applyTextSize(size) {
             appState.textSize = size;
+            saveSettings();
             // The font size logic is handled directly in renderLessonView() now
             if (appState.currentView === 'lesson') renderLessonView();
+        }
+
+        function applyVoiceSettings() {
+            appState.voiceName = document.getElementById('voice-select').value;
+            appState.voiceRate = parseFloat(document.getElementById('voice-rate').value);
+            appState.voicePitch = parseFloat(document.getElementById('voice-pitch').value);
+            document.getElementById('rate-display').textContent = appState.voiceRate.toFixed(1);
+            document.getElementById('pitch-display').textContent = appState.voicePitch.toFixed(1);
+            saveSettings();
         }
 
         function updateAllText() {
@@ -539,22 +720,51 @@
             document.getElementById('nav-quiz').textContent = t('nav').quiz;
             document.getElementById('nav-management').textContent = t('nav').management;
             document.getElementById('nav-settings').textContent = t('nav').settings;
-            // The rest of the text is updated by re-rendering the current view, but we can update static text here
+
+            // Update management labels
+            document.getElementById('register-title').textContent = t('register_learner');
+            document.getElementById('first-name-label').textContent = t('first_name');
+            document.getElementById('last-name-label').textContent = t('last_name');
+            document.getElementById('grade-label').textContent = t('grade');
+            document.getElementById('learner-id-label').textContent = t('learner_id');
+            document.getElementById('submit-learner').textContent = t('submit');
+            document.getElementById('current-learners-title').textContent = t('current_learners');
+
+            // Update settings labels
+            document.getElementById('voice-settings-title').textContent = t('voice_settings');
+            document.getElementById('select-voice-label').textContent = t('select_voice');
+            document.getElementById('rate-label').textContent = t('rate');
+            document.getElementById('pitch-label').textContent = t('pitch');
+            document.getElementById('accessibility-title').textContent = t('accessibility');
+            document.getElementById('contrast-label').textContent = t('contrast');
+            document.getElementById('text-size-label').textContent = t('text_size');
+            
             document.getElementById('module-literacy-label').textContent = t('literacy_module');
             document.getElementById('module-numeracy-label').textContent = t('numeracy_module');
             document.getElementById('module-life_skills-label').textContent = t('life_skills_module');
+            document.getElementById('module-vocabulary-label').textContent = t('vocabulary_module');
+
+            document.querySelector('#contrast-select option[value="normal"]').textContent = t('normal');
+            document.querySelector('#contrast-select option[value="high_contrast"]').textContent = t('high_contrast');
+            document.querySelector('#text-size-select option[value="small"]').textContent = t('small');
+            document.querySelector('#text-size-select option[value="medium"]').textContent = t('medium');
+            document.querySelector('#text-size-select option[value="large"]').textContent = t('large');
+            
+            // Re-render navigation buttons to update colors based on contrast
+            changeView(appState.currentView);
         }
 
         // --- Firebase/Firestore Logic ---
         
         async function firebaseInit() {
-            try {
-                // Import necessary modules
-                const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-                const { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
-                const { getFirestore, doc, setDoc, onSnapshot, collection, query, addDoc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                const { setLogLevel } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+            if (!window.firebase) {
+                console.error("Firebase imports failed to load.");
+                return;
+            }
 
+            try {
+                const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, setLogLevel } = window.firebase;
+                
                 if (!firebaseConfig) {
                     throw new Error("Firebase configuration is missing.");
                 }
@@ -575,10 +785,11 @@
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         userId = user.uid;
-                        appState.authReady = true;
+                        authReady = true;
                         console.log("Firebase Auth Ready. User ID:", userId);
                         
                         // Start listening to Learner Data and Settings
+                        setupSettingsListener();
                         setupLearnerListener();
                     } else {
                         console.log("No user signed in (using anonymous fallback).");
@@ -593,46 +804,161 @@
 
         function getLearnersCollectionPath() {
             // Private Data Path: /artifacts/{appId}/users/{userId}/learners
-            return `/artifacts/${appId}/users/${userId}/learners`;
+            return `artifacts/${appId}/users/${userId}/learners`;
+        }
+        
+        function getSettingsDocPath() {
+            // Private Settings Document Path: /artifacts/{appId}/users/{userId}/settings/prefs
+            return `artifacts/${appId}/users/${userId}/settings/prefs`;
         }
 
         function setupLearnerListener() {
             if (!db || !userId) return;
+            const { collection, query, onSnapshot } = window.firebase;
+
+            // Clear previous listener if it exists
+            if (unsubscribeLearners) {
+                unsubscribeLearners();
+            }
+
             const learnerColRef = collection(db, getLearnersCollectionPath());
             const q = query(learnerColRef);
 
-            onSnapshot(q, (snapshot) => {
+            unsubscribeLearners = onSnapshot(q, (snapshot) => {
                 const learners = [];
                 snapshot.forEach((doc) => {
                     learners.push({ id: doc.id, ...doc.data() });
                 });
                 appState.learnerData = learners;
-                console.log("Learner data updated:", learners.length, "learners.");
-                
-                // Only re-render management view if it's the current view
+                console.log("Learners updated:", appState.learnerData.length);
                 if (appState.currentView === 'management') {
                     renderManagementView();
                 }
             }, (error) => {
-                console.error("Learner snapshot listener failed:", error);
+                console.error("Learner Listener Error:", error);
             });
         }
+        
+        function setupSettingsListener() {
+            if (!db || !userId) return;
+            const { doc, onSnapshot } = window.firebase;
 
-        async function registerLearner(event) {
-            event.preventDefault();
+            // Clear previous listener if it exists
+            if (unsubscribeSettings) {
+                unsubscribeSettings();
+            }
+
+            const settingsDocRef = doc(db, getSettingsDocPath());
+
+            unsubscribeSettings = onSnapshot(settingsDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const savedSettings = docSnap.data();
+                    
+                    // Apply saved settings to appState
+                    appState.module = savedSettings.module || appState.module;
+                    appState.language = savedSettings.language || appState.language;
+                    appState.contrastMode = savedSettings.contrastMode || appState.contrastMode;
+                    appState.textSize = savedSettings.textSize || appState.textSize;
+                    appState.currentLiteracyIndex = savedSettings.currentLiteracyIndex || 0;
+                    appState.currentNumeracyIndex = savedSettings.currentNumeracyIndex || 0;
+                    appState.currentLifeSkillsIndex = savedSettings.currentLifeSkillsIndex || 0;
+                    appState.currentVocabularyIndex = savedSettings.currentVocabularyIndex || 0;
+                    
+                    appState.voiceName = savedSettings.voiceName || appState.voiceName;
+                    appState.voiceRate = savedSettings.voiceRate || appState.voiceRate;
+                    appState.voicePitch = savedSettings.voicePitch || appState.voicePitch;
+
+                    console.log("Settings loaded/updated from Firestore.");
+                } else {
+                    console.log("No user settings found. Using defaults.");
+                    // Save current defaults if none exist
+                    saveSettings(true); 
+                }
+                
+                if (!settingsLoaded) {
+                    renderAll();
+                    settingsLoaded = true;
+                }
+                
+            }, (error) => {
+                console.error("Settings Listener Error:", error);
+            });
+        }
+        
+        // Function to save current state settings to Firestore
+        async function saveSettings(force = false) {
             if (!db || !userId) {
-                showFormFeedback("Database not ready or User not authenticated.", 'error');
+                console.warn("Cannot save settings: Firebase or User ID not ready.");
+                return;
+            }
+            if (!settingsLoaded && !force) return;
+            
+            const { doc, setDoc } = window.firebase;
+            const settingsDocRef = doc(db, getSettingsDocPath());
+            
+            const settingsToSave = {
+                module: appState.module,
+                language: appState.language,
+                contrastMode: appState.contrastMode,
+                textSize: appState.textSize,
+                currentLiteracyIndex: appState.currentLiteracyIndex,
+                currentNumeracyIndex: appState.currentNumeracyIndex,
+                currentLifeSkillsIndex: appState.currentLifeSkillsIndex,
+                currentVocabularyIndex: appState.currentVocabularyIndex,
+                voiceName: appState.voiceName,
+                voiceRate: appState.voiceRate,
+                voicePitch: appState.voicePitch,
+                lastUpdated: new Date().toISOString()
+            };
+            
+            try {
+                await setDoc(settingsDocRef, settingsToSave, { merge: true });
+                // console.log("Settings saved successfully.");
+            } catch (e) {
+                console.error("Error saving settings: ", e);
+            }
+        }
+
+
+        // Globalize these functions for use in inline HTML handlers
+        window.deleteLearner = async function(docId) {
+            if (!db || !userId) {
+                console.error("Cannot delete learner: Firebase not ready.");
+                return;
+            }
+            const { doc, deleteDoc } = window.firebase;
+            
+            // NOTE: Replacing native confirm with a placeholder text message since native alerts/confirms are forbidden
+            const message = document.getElementById('learner-form-message');
+            message.textContent = "Please confirm deletion via custom modal (not implemented in this mock). Deleting now...";
+            setTimeout(() => message.textContent = '', 2000);
+            
+            const learnerDocRef = doc(db, getLearnersCollectionPath(), docId);
+            try {
+                await deleteDoc(learnerDocRef);
+                console.log("Learner successfully deleted!");
+            } catch (e) {
+                console.error("Error deleting learner: ", e);
+            }
+        }
+
+        window.registerLearner = async function(event) {
+            event.preventDefault(); // Prevent default form submission
+            if (!db || !userId) {
+                document.getElementById('learner-form-message').textContent = "Error: Database not ready.";
                 return;
             }
 
+            const { collection, addDoc } = window.firebase;
+            
             const form = event.target;
-            const firstName = form.elements['first-name'].value.trim();
-            const lastName = form.elements['last-name'].value.trim();
-            const grade = parseInt(form.elements['grade-level'].value);
-            const uniqueId = form.elements['unique-id'].value.trim();
+            const firstName = form.firstName.value.trim();
+            const lastName = form.lastName.value.trim();
+            const grade = parseInt(form.grade.value, 10);
+            const customId = form.customId.value.trim();
 
-            if (!firstName || !lastName || !grade) {
-                showFormFeedback("Please fill in First Name, Last Name, and Grade Level.", 'error');
+            if (!firstName || !lastName || isNaN(grade) || grade < 1 || grade > 8) {
+                document.getElementById('learner-form-message').textContent = "Please fill in all required fields correctly (Grade 1-8).";
                 return;
             }
 
@@ -640,266 +966,181 @@
                 firstName: firstName,
                 lastName: lastName,
                 grade: grade,
-                uniqueId: uniqueId || null,
+                customId: customId,
                 registeredAt: new Date().toISOString()
             };
 
             try {
-                const { collection, addDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
                 const docRef = await addDoc(collection(db, getLearnersCollectionPath()), newLearner);
-                showFormFeedback(`✅ Learner successfully registered! ID: ${docRef.id.substring(0, 5)}...`, 'success');
-                document.getElementById('add-learner-form').reset();
-            } catch (error) {
-                console.error("Error adding new learner:", error);
-                showFormFeedback("❌ Failed to register learner. Check console for details.", 'error');
+                console.log("Learner registered with ID: ", docRef.id);
+                document.getElementById('learner-form-message').textContent = `${firstName} registered successfully!`;
+                form.reset(); // Clear form on success
+                setTimeout(() => document.getElementById('learner-form-message').textContent = '', 3000);
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                document.getElementById('learner-form-message').textContent = "Registration failed. See console for details.";
             }
-        }
-
-        async function deleteLearner(learnerId) {
-            if (!db || !userId || !confirm(`Are you sure you want to delete this learner (ID: ${learnerId.substring(0, 5)}...)?`)) {
-                return;
-            }
-            try {
-                const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                const docRef = doc(db, getLearnersCollectionPath(), learnerId);
-                await deleteDoc(docRef);
-                showFormFeedback(`🗑️ Learner deleted!`, 'info');
-            } catch (error) {
-                console.error("Error deleting learner:", error);
-                showFormFeedback("❌ Failed to delete learner. Check console for details.", 'error');
-            }
-        }
-
-        function showFormFeedback(message, type) {
-            const formMessageEl = document.getElementById('learner-form-message');
-            formMessageEl.textContent = message;
-            
-            if (type === 'success') {
-                formMessageEl.className = 'mt-4 text-center font-semibold text-green-600';
-            } else if (type === 'error') {
-                formMessageEl.className = 'mt-4 text-center font-semibold text-red-600';
-            } else { // info
-                formMessageEl.className = 'mt-4 text-center font-semibold text-blue-600';
-            }
-
-            setTimeout(() => {
-                formMessageEl.textContent = '';
-                formMessageEl.className = 'mt-4 text-center font-semibold';
-            }, 5000);
-        }
-
-        // --- Event Listener Setup ---
-
-        // Handle settings form changes (not using a submit button, changes apply immediately)
-        function handleSettingsChange(event) {
-            const { id, value } = event.target;
-            if (id === 'module-select') loadModule(value);
-            if (id === 'language-select') setLanguage(value);
-            if (id === 'contrast-select') applyTheme(value);
-            if (id === 'text-size-select') applyTextSize(value);
-            
-            // TTS Settings (update state for the speaker function)
-            if (id === 'voice-select') appState.voiceName = value;
-            if (id === 'voice-rate') appState.voiceRate = parseFloat(value);
-            if (id === 'voice-pitch') appState.voicePitch = parseFloat(value);
         }
         
-        // Initial setup on load
+        window.loadModule = loadModule;
+        window.setLanguage = setLanguage;
+        window.applyTheme = applyTheme;
+        window.applyTextSize = applyTextSize;
+        window.applyVoiceSettings = applyVoiceSettings;
+        window.changeView = changeView;
+
+
+        // --- Initialization on Window Load ---
         window.onload = function() {
+            // Start Firebase and Authentication process
+            firebaseInit();
+            // Initialize TTS
             initializeTTS();
-            firebaseInit(); 
             
-            // Apply initial accessibility state
-            applyTheme(appState.contrastMode);
-            applyTextSize(appState.textSize);
-            
-            // Load the default module (Literacy)
-            loadModule(appState.module); 
-            
-            // Set default language after loading content
-            setLanguage(appState.language);
-            
-            // Default to Lesson View and render it
+            // Initial render before settings are loaded (uses defaults)
+            renderAll();
+            // Start in lesson view of the default module (Vocabulary)
             changeView('lesson');
-
-            // Attach form event listener after DOM is ready
-            document.getElementById('add-learner-form').addEventListener('submit', registerLearner);
-            document.getElementById('settings-form').addEventListener('change', handleSettingsChange);
-
-            console.log("Meqenet Learner App initialized.");
         };
-
     </script>
 </head>
-
-<!-- Main container for the whole application -->
 <body id="app-body" class="bg-gray-50 text-gray-900 min-h-screen">
+    <div class="max-w-4xl mx-auto p-4 md:p-8">
 
-    <div id="main-container" class="min-h-screen flex flex-col max-w-7xl mx-auto bg-white shadow-2xl">
-
-        <!-- Header -->
-        <header id="header" class="p-4 bg-indigo-700 text-white shadow-lg sticky top-0 z-10">
-            <h1 class="text-3xl font-extrabold text-center">Meqenet Learner App</h1>
-            <p class="text-center text-indigo-200 text-sm">Interactive Education for All</p>
+        <!-- Header and User ID Display -->
+        <header class="mb-6 pb-4 border-b-2 border-indigo-200">
+            <h1 class="text-4xl font-extrabold text-indigo-700 mb-2">Meqenet Learning Platform</h1>
+            <p id="user-id-display" class="text-xs text-gray-500 font-mono break-words"></p>
         </header>
 
-        <!-- Navigation Bar -->
-        <nav id="nav-bar" class="p-2 shadow-inner bg-white sticky top-16 z-10">
-            <div class="flex justify-around space-x-2">
-                <button id="nav-lesson" data-view="lesson" onclick="changeView('lesson')" class="large-touch-target flex-1 text-sm bg-indigo-500 text-white shadow-md">Lesson</button>
-                <button id="nav-quiz" data-view="quiz" onclick="changeView('quiz')" class="large-touch-target flex-1 text-sm bg-gray-100 text-gray-600 hover:bg-gray-200">Quiz</button>
-                <button id="nav-management" data-view="management" onclick="changeView('management')" class="large-touch-target flex-1 text-sm bg-gray-100 text-gray-600 hover:bg-gray-200">Learner Management</button>
-                <button id="nav-settings" data-view="settings" onclick="changeView('settings')" class="large-touch-target flex-1 text-sm bg-gray-100 text-gray-600 hover:bg-gray-200">Settings</button>
-            </div>
+        <!-- Main Navigation (Mobile-friendly fixed at top on small screens) -->
+        <nav id="nav-bar" class="flex justify-around bg-white p-2 rounded-xl shadow-lg mb-8 sticky top-0 z-10 space-x-2">
+            <button data-view="lesson" id="nav-lesson" onclick="changeView('lesson')" class="flex-1 large-touch-target bg-indigo-500 text-white shadow-md">Lesson</button>
+            <button data-view="quiz" id="nav-quiz" onclick="changeView('quiz')" class="flex-1 large-touch-target bg-gray-100 text-gray-600 hover:bg-gray-200">Quiz</button>
+            <button data-view="management" id="nav-management" onclick="changeView('management')" class="flex-1 large-touch-target bg-gray-100 text-gray-600 hover:bg-gray-200">Learner Management</button>
+            <button data-view="settings" id="nav-settings" onclick="changeView('settings')" class="flex-1 large-touch-target bg-gray-100 text-gray-600 hover:bg-gray-200">Settings</button>
         </nav>
 
-        <!-- Main Content Area - Uses flex-grow to take up vertical space -->
-        <main id="content-area" class="flex-grow p-4 md:p-8">
-            
-            <!-- Lesson View -->
-            <div id="lesson-view" class="space-y-6">
-                <!-- Content is rendered by renderLessonView() -->
-            </div>
+        <!-- Main Content Area -->
+        <main>
+            <!-- Lesson View (Default) -->
+            <section id="lesson-view" class="space-y-6">
+                <!-- Content injected by renderLessonView() -->
+            </section>
 
             <!-- Quiz View -->
-            <div id="quiz-view" class="hidden space-y-6">
-                <!-- Content is rendered by renderQuizView() -->
-            </div>
+            <section id="quiz-view" class="hidden space-y-6">
+                <!-- Content injected by renderQuizView() -->
+            </section>
 
-            <!-- Learner Management View - Improved Responsive Layout -->
-            <div id="management-view" class="hidden">
-                <h2 class="text-3xl font-extrabold text-indigo-700 mb-8 border-b pb-3">Learner Management Portal</h2>
+            <!-- Learner Management View -->
+            <section id="management-view" class="hidden space-y-8">
                 
-                <!-- Responsive Grid: Two columns on large screens, stacked on mobile -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    
-                    <!-- Column 1: Add New Learner -->
-                    <div id="add-learner-section" class="section-card bg-indigo-50 border border-indigo-200 h-full">
-                        <h3 class="text-2xl font-bold text-indigo-800 mb-6">${t('register_learner')}</h3>
-                        <form id="add-learner-form" class="space-y-4">
+                <!-- Registration Form -->
+                <div class="${getCardClasses('bg-white', 'border border-gray-200')}">
+                    <h2 id="register-title" class="text-xl font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-600'} mb-4">Register New Learner</h2>
+                    <form onsubmit="window.registerLearner(event)">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label for="first-name" class="block text-sm font-medium text-gray-700">${t('first_name')}</label>
-                                <input type="text" id="first-name" name="first-name" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border">
+                                <label id="first-name-label" for="firstName" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">First Name</label>
+                                <input type="text" id="firstName" name="firstName" required class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
                             </div>
                             <div>
-                                <label for="last-name" class="block text-sm font-medium text-gray-700">${t('last_name')}</label>
-                                <input type="text" id="last-name" name="last-name" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border">
+                                <label id="last-name-label" for="lastName" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Last Name</label>
+                                <input type="text" id="lastName" name="lastName" required class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label for="grade-level" class="block text-sm font-medium text-gray-700">${t('grade')}</label>
-                                    <input type="number" id="grade-level" name="grade-level" required min="1" max="8" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border">
-                                </div>
-                                <div>
-                                    <label for="unique-id" class="block text-sm font-medium text-gray-700">${t('learner_id')}</label>
-                                    <input type="text" id="unique-id" name="unique-id" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border" placeholder="Optional">
-                                </div>
+                            <div>
+                                <label id="grade-label" for="grade" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Grade Level (1-8)</label>
+                                <input type="number" id="grade" name="grade" min="1" max="8" required class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
                             </div>
-                            
-                            <button type="submit" class="large-touch-target w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block mr-2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                                ${t('submit')}
-                            </button>
-                            <div id="learner-form-message" class="mt-4 text-center font-semibold"></div>
-                        </form>
+                            <div>
+                                <label id="learner-id-label" for="customId" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Unique ID (Optional)</label>
+                                <input type="text" id="customId" name="customId" class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
+                            </div>
+                        </div>
+                        <p id="learner-form-message" class="text-sm text-center text-green-600 font-semibold mb-3"></p>
+                        <button id="submit-learner" type="submit" class="${getButtonClasses('bg-indigo-600', 'bg-indigo-700', 'bg-indigo-800', 'text-white')} w-full">
+                            Register Learner
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Current Learners List -->
+                <div class="${getCardClasses('bg-white', 'border border-gray-200')}">
+                    <h2 id="current-learners-title" class="text-xl font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-600'} mb-4">Current Learners (Synced)</h2>
+                    <div id="learner-list" class="space-y-3">
+                        <!-- Learner list injected by renderManagementView() -->
                     </div>
-                    
-                    <!-- Column 2: Current Learners List -->
-                    <div id="learners-list-section" class="section-card bg-white border border-gray-200">
-                        <h3 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">${t('current_learners')}</h3>
-                        <div id="learner-list" class="space-y-3">
-                            <p class="text-center text-gray-500 italic p-4">Loading learners...</p>
-                            <!-- Learner list populated by onSnapshot listener -->
+                </div>
+            </section>
+
+            <!-- Settings View -->
+            <section id="settings-view" class="hidden space-y-6">
+                
+                <!-- Module/Language Selection -->
+                <div class="${getCardClasses('bg-white', 'border border-gray-200')} grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="module-select" class="block text-lg font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-gray-700'} mb-2">Learning Module</label>
+                        <select id="module-select" onchange="window.loadModule(this.value)" class="input-style block w-full border-gray-300 rounded-md shadow-sm p-3">
+                            <option value="literacy" id="module-literacy-label">Literacy Module (A-Z)</option>
+                            <option value="numeracy" id="module-numeracy-label">Numeracy Module (1-100)</option>
+                            <option value="life_skills" id="module-life_skills-label">Life Skills Module</option>
+                            <option value="vocabulary" id="module-vocabulary-label">Vocabulary Module (100 Words)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="language-select" class="block text-lg font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-gray-700'} mb-2">Language</label>
+                        <select id="language-select" onchange="window.setLanguage(this.value)" class="input-style block w-full border-gray-300 rounded-md shadow-sm p-3">
+                            <option value="english">English (US)</option>
+                            <option value="amharic">Amharic (አማርኛ)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Voice Settings -->
+                <div class="${getCardClasses('bg-white', 'border border-gray-200')}">
+                    <h2 id="voice-settings-title" class="text-xl font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-600'} mb-4">Voice Settings</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label id="select-voice-label" for="voice-select" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Select Voice</label>
+                            <select id="voice-select" onchange="window.applyVoiceSettings()" class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-3"></select>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label id="rate-label" for="voice-rate" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Speed (Rate) <span id="rate-display" class="font-mono ml-2">0.6</span></label>
+                                <input type="range" id="voice-rate" min="0.1" max="2.0" step="0.1" value="0.6" oninput="window.applyVoiceSettings()" class="mt-2 w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer">
+                            </div>
+                            <div>
+                                <label id="pitch-label" for="voice-pitch" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Pitch <span id="pitch-display" class="font-mono ml-2">1.0</span></label>
+                                <input type="range" id="voice-pitch" min="0.1" max="2.0" step="0.1" value="1.0" oninput="window.applyVoiceSettings()" class="mt-2 w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer">
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Settings View -->
-            <div id="settings-view" class="hidden">
-                <h2 class="text-3xl font-extrabold text-indigo-700 mb-8 border-b pb-3">Settings & Preferences</h2>
-                <form id="settings-form" class="space-y-8">
-
-                    <!-- Module & Language Section -->
-                    <div class="section-card bg-blue-50 border border-blue-200">
-                        <h3 class="text-xl font-semibold text-blue-700 mb-4">Content Preferences</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <!-- Module Selector -->
-                            <div>
-                                <label for="module-select" class="block text-sm font-medium text-gray-700">Module</label>
-                                <select id="module-select" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border">
-                                    <option value="literacy" id="module-literacy-label">Literacy Module</option>
-                                    <option value="numeracy" id="module-numeracy-label">Numeracy Module</option>
-                                    <option value="life_skills" id="module-life_skills-label">Life Skills Module</option>
-                                </select>
-                            </div>
-                            <!-- Language Selector -->
-                            <div>
-                                <label for="language-select" class="block text-sm font-medium text-gray-700">Display Language</label>
-                                <select id="language-select" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border">
-                                    <option value="english">English</option>
-                                    <option value="amharic">Amharic (አማርኛ)</option>
-                                </select>
-                            </div>
+                <!-- Accessibility Settings -->
+                <div class="${getCardClasses('bg-white', 'border border-gray-200')}">
+                    <h2 id="accessibility-title" class="text-xl font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-600'} mb-4">Accessibility Settings</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label id="contrast-label" for="contrast-select" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Contrast Mode</label>
+                            <select id="contrast-select" onchange="window.applyTheme(this.value)" class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-3">
+                                <option value="normal" >Normal</option>
+                                <option value="high_contrast">High Contrast</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label id="text-size-label" for="text-size-select" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Text Size</label>
+                            <select id="text-size-select" onchange="window.applyTextSize(this.value)" class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-3">
+                                <option value="small">Small</option>
+                                <option value="medium">Medium</option>
+                                <option value="large">Large</option>
+                            </select>
                         </div>
                     </div>
-
-                    <!-- Accessibility Section -->
-                    <div class="section-card bg-yellow-50 border border-yellow-200">
-                        <h3 class="text-xl font-semibold text-yellow-700 mb-4">${t('accessibility')}</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <!-- Contrast Mode -->
-                            <div>
-                                <label for="contrast-select" class="block text-sm font-medium text-gray-700">${t('contrast')}</label>
-                                <select id="contrast-select" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border">
-                                    <option value="normal">${t('normal')}</option>
-                                    <option value="high_contrast">${t('high_contrast')}</option>
-                                </select>
-                            </div>
-                            <!-- Text Size -->
-                            <div>
-                                <label for="text-size-select" class="block text-sm font-medium text-gray-700">${t('text_size')}</label>
-                                <select id="text-size-select" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border">
-                                    <option value="small">${t('small')}</option>
-                                    <option value="medium">${t('medium')}</option>
-                                    <option value="large">${t('large')}</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- TTS Voice Settings Section -->
-                    <div class="section-card bg-green-50 border border-green-200">
-                        <h3 class="text-xl font-semibold text-green-700 mb-4">${t('voice_settings')}</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <!-- Voice Select -->
-                            <div>
-                                <label for="voice-select" class="block text-sm font-medium text-gray-700">${t('select_voice')}</label>
-                                <select id="voice-select" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border">
-                                    <option value="">Loading Voices...</option>
-                                </select>
-                            </div>
-                            <!-- Rate Slider -->
-                            <div>
-                                <label for="voice-rate" class="block text-sm font-medium text-gray-700">${t('rate')} (<span id="rate-value">0.6</span>)</label>
-                                <input type="range" id="voice-rate" min="0.1" max="2.0" step="0.1" value="0.6" class="mt-3 w-full" oninput="document.getElementById('rate-value').textContent=this.value">
-                            </div>
-                            <!-- Pitch Slider -->
-                            <div>
-                                <label for="voice-pitch" class="block text-sm font-medium text-gray-700">${t('pitch')} (<span id="pitch-value">1.0</span>)</label>
-                                <input type="range" id="voice-pitch" min="0.1" max="2.0" step="0.1" value="1.0" class="mt-3 w-full" oninput="document.getElementById('pitch-value').textContent=this.value">
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-
+                </div>
+            </section>
         </main>
-        
-        <!-- Footer -->
-        <footer class="p-2 text-center text-xs text-gray-400 border-t mt-4">
-            Meqenet Learner App Demo | Designed for Accessibility
-        </footer>
     </div>
 </body>
 </html>
