@@ -5,804 +5,476 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meqenet Learner & Management App</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { 
-            font-family: 'Inter', sans-serif; 
-            transition: background-color 0.3s, color 0.3s; 
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-        }
-        .large-touch-target {
-            padding: 1rem;
-            border-radius: 0.75rem;
-            font-weight: bold;
-            transition: all 0.2s;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
-        }
-        .section-card {
-            background-color: white;
-            padding: 1.5rem;
-            border-radius: 1rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-        }
-    </style>
-</head>
-<body id="app-body" class="bg-gray-50 text-gray-900 min-h-screen">
-
-    <!-- Application Wrapper -->
-    <div id="app-container" class="max-w-4xl mx-auto p-4 sm:p-8">
-
-        <header class="mb-6 pb-3 border-b-2 border-indigo-200">
-            <h1 class="text-3xl font-extrabold text-indigo-700">Meqenet Learner Platform</h1>
-            <!-- User Status and ID Display -->
-            <div id="user-status" class="text-sm font-semibold mt-1 p-2 bg-indigo-100 rounded-md border border-indigo-300">
-                <p class="text-xs text-indigo-600">Authenticated User ID:</p>
-                <p id="user-id-display" class="font-mono break-all text-gray-800 text-base">Loading...</p>
-                <p class="text-xs text-indigo-600 mt-1">Role: <span id="user-role-display">...</span> | App: <span id="app-id-display">...</span></p>
-            </div>
-        </header>
-        
-        <!-- --- Main Navigation/View Selector --- -->
-        <div class="flex space-x-4 mb-6">
-            <button onclick="changeView('lesson')" id="lesson-tab" class="flex-1 large-touch-target bg-indigo-600 text-white shadow-indigo-400">
-                🚀 Start Learning
-            </button>
-            <button onclick="changeView('management')" id="management-tab" class="flex-1 large-touch-target bg-gray-300 text-gray-800 shadow-gray-400">
-                🧑‍🏫 Manage Learners
-            </button>
-        </div>
-
-        <!-- --- View Containers --- -->
-        <div id="view-lesson" class="view-container">
-            
-            <!-- --- Active Learner Selector (NEW) --- -->
-            <section id="learner-selector-panel" class="mb-8 p-4 bg-yellow-100 rounded-xl shadow border border-yellow-300">
-                <h2 class="text-xl font-bold mb-3 text-yellow-700">Active Learner</h2>
-                <select id="active-learner-select" onchange="setActiveLearner(this.value)" class="large-touch-target bg-white border border-yellow-500 w-full text-lg">
-                    <option value="">-- Select Learner to Start Lesson --</option>
-                </select>
-                <p id="active-learner-name" class="mt-2 text-lg font-semibold text-yellow-800">
-                    <span id="active-learner-name-display">Not Selected</span>. Please choose a learner to track progress.
-                </p>
-            </section>
-
-            <!-- This section contains the learning/quiz UI from the previous step -->
-
-            <section id="settings-panel" class="mb-8 p-4 bg-gray-100 rounded-xl shadow-inner border border-gray-200">
-                <h2 class="text-xl font-bold mb-3 text-gray-700">Customize Your Lesson</h2>
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    
-                    <!-- Language Selector -->
-                    <select id="lang-select" onchange="setLanguage(this.value)" class="large-touch-target bg-white border border-gray-300">
-                        <option value="am">አማርኛ (Amharic)</option>
-                        <option value="en">English</option>
-                        <option value="om">Oromo (Demo)</option>
-                        <option value="ti">Tigrinya (Demo)</option>
-                    </select>
-
-                    <!-- Contrast Mode Selector -->
-                    <select id="contrast-select" onchange="setContrastMode(this.value)" class="large-touch-target bg-white border border-gray-300">
-                        <option value="standard">Standard Contrast</option>
-                        <option value="high">High Contrast</option>
-                        <option value="cognitive">Cognitive Mode</option>
-                    </select>
-
-                    <!-- Text Size Buttons -->
-                    <button onclick="setTextSize('standard')" class="large-touch-target bg-indigo-500 text-white hover:bg-indigo-600 text-sm">A</button>
-                    <button onclick="setTextSize('extra-large')" class="large-touch-target bg-indigo-500 text-white hover:bg-indigo-600 text-lg">A++</button>
-
-                </div>
-            </section>
-
-            <section id="lesson-content" class="p-6 rounded-xl shadow-2xl transition-all section-card">
-                <div class="flex space-x-4 mb-6">
-                    <button onclick="loadModule('literacy')" id="lesson-literacy-tab" class="flex-1 large-touch-target bg-indigo-600 text-white shadow-indigo-400">
-                        📚 Literacy (A-Z)
-                    </button>
-                    <button onclick="loadModule('numeracy')" id="lesson-numeracy-tab" class="flex-1 large-touch-target bg-gray-300 text-gray-800 shadow-gray-400">
-                        ➕ Numeracy (1-100)
-                    </button>
-                </div>
-
-                <h2 id="lesson-title" class="text-3xl font-bold mb-4 text-center text-indigo-700"></h2>
-                
-                <div id="lesson-text-container" class="p-6 my-6 border-4 rounded-xl text-center bg-white shadow-lg transition-all">
-                    <div id="lesson-visuals" class="mb-4 text-8xl flex justify-center items-center h-20"></div>
-                    <p id="lesson-word" class="font-extrabold leading-tight text-5xl" style="font-size: 80px;"></p>
-                    <p id="lesson-example" class="mt-2 text-xl italic"></p>
-                </div>
-                
-                <div class="flex justify-between items-center gap-4 mb-6">
-                    <button onclick="navigateContent('prev')" id="prev-button" class="large-touch-target bg-red-500 text-white hover:bg-red-600">
-                        <span class="text-2xl">← Previous</span>
-                    </button>
-
-                    <div class="flex space-x-3">
-                        <button onclick="playAudioHint()" id="audio-button" class="large-touch-target bg-green-500 text-white hover:bg-green-600 flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-volume-2 w-6 h-6 mr-2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-                            <span id="audio-label">Speak</span>
-                        </button>
-                        <button onclick="showSignLanguage()" class="large-touch-target bg-yellow-500 text-gray-800 hover:bg-yellow-600">
-                            Sign Video
-                        </button>
-                    </div>
-                    
-                    <button onclick="navigateContent('next')" id="next-button" class="large-touch-target bg-blue-500 text-white hover:bg-blue-600">
-                        <span class="text-2xl">Next →</span>
-                    </button>
-                </div>
-
-                <div id="quiz-area" class="p-6 mt-8 rounded-xl shadow-xl bg-indigo-50">
-                    <h3 id="quiz-instruction" class="text-2xl font-bold mb-4 text-center text-indigo-700">Choose the correct object/number.</h3>
-                    <div id="quiz-options" class="grid grid-cols-2 gap-4">
-                    </div>
-                    <p id="quiz-message" class="mt-4 text-center text-xl font-bold"></p>
-                </div>
-            </section>
-        </div>
-
-        <!-- --- Learner Management View (New Section) --- -->
-        <div id="view-management" class="view-container hidden">
-            <h2 class="text-3xl font-extrabold text-gray-700 mb-6 border-b pb-2">Learner Management</h2>
-            
-            <!-- Add New Learner Form -->
-            <section class="mb-8 section-card">
-                <h3 class="text-2xl font-bold text-indigo-600 mb-4">Add New Learner</h3>
-                <form id="add-learner-form">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        
-                        <!-- Name -->
-                        <div>
-                            <label for="learner-name" class="block text-sm font-medium text-gray-700">Full Name</label>
-                            <input type="text" id="learner-name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 border">
-                        </div>
-                        
-                        <!-- Gender -->
-                        <div>
-                            <label for="learner-gender" class="block text-sm font-medium text-gray-700">Gender</label>
-                            <select id="learner-gender" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 border bg-white">
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                                <option value="Other">Other</option>
-                            </select>
-                        </div>
-                        
-                        <!-- Age -->
-                        <div>
-                            <label for="learner-age" class="block text-sm font-medium text-gray-700">Age</label>
-                            <input type="number" id="learner-age" required min="3" max="15" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 border">
-                        </div>
-                        
-                        <!-- Grade -->
-                        <div>
-                            <label for="learner-grade" class="block text-sm font-medium text-gray-700">Grade (P1-P3)</label>
-                            <select id="learner-grade" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 border bg-white">
-                                <option value="P1">P1</option>
-                                <option value="P2">P2</option>
-                                <option value="P3">P3</option>
-                            </select>
-                        </div>
-
-                        <!-- Disability Type -->
-                        <div class="md:col-span-2">
-                            <label for="learner-disability" class="block text-sm font-medium text-gray-700">Disability Type (Optional)</label>
-                            <select id="learner-disability" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 border bg-white">
-                                <option value="None">None</option>
-                                <option value="visual">Visual</option>
-                                <option value="hearing">Hearing</option>
-                                <option value="cognitive">Cognitive</option>
-                                <option value="learning">Learning</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="mt-6 large-touch-target bg-green-600 text-white hover:bg-green-700 w-full">
-                        ➕ Register Learner
-                    </button>
-                </form>
-                <p id="learner-form-message" class="mt-4 text-center font-semibold"></p>
-            </section>
-            
-            <!-- Learner List Display -->
-            <section class="section-card">
-                <h3 class="text-2xl font-bold text-gray-700 mb-4">Your Enrolled Learners (<span id="learner-count">0</span>)</h3>
-                <div id="learner-list" class="space-y-3">
-                    <p id="no-learners-message" class="text-gray-500 italic">No learners enrolled yet. Add one above!</p>
-                </div>
-            </section>
-        </div>
-
-    </div>
-
-    <!-- Firebase SDK Imports and Initialization -->
+    <!-- Firebase Imports -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, deleteDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // --- Global Setup (Required Boilerplate) ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // Note: The __firebase_config comes in as a string and needs parsing
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        let app, db, auth;
+        let userId = null;
+        
+        // State management (Simulated with a global object for simplicity)
+        const appState = {
+            view: 'lesson', // 'lesson', 'quiz', 'activity', 'manageLearners', 'settings'
+            module: 'Literacy', // 'Literacy', 'Numeracy', 'SocialSkills', 'LifeSkills'
+            textSize: 'medium', // 'small', 'medium', 'large'
+            contrastMode: 'normal', // 'normal', 'high'
+            learners: [], // List of managed learners
+            isAuthReady: false,
+            modules: ['Literacy', 'Numeracy', 'SocialSkills', 'LifeSkills']
+        };
 
-        // --- EXPOSE FIRESTORE FUNCTIONS GLOBALLY (Fixes ReferenceError) ---
-        window.doc = doc;
-        window.getDoc = getDoc;
-        window.setDoc = setDoc;
-        window.collection = collection;
-        window.onSnapshot = onSnapshot;
-        window.addDoc = addDoc;
-        window.query = query;
-        // -------------------------------------------------------------------
+        // --- Phonics Data with Words and Emojis ---
+        const PHONICS_DATA = [
+            { letter: 'A', sound: 'ah', word: 'Apple', emoji: '🍎' },
+            { letter: 'B', sound: 'buh', word: 'Ball', emoji: '⚽' },
+            { letter: 'C', sound: 'kuh', word: 'Cat', emoji: '🐈' },
+            { letter: 'D', sound: 'duh', word: 'Dog', emoji: '🐕' },
+            { letter: 'E', sound: 'eh', word: 'Egg', emoji: '🥚' },
+            { letter: 'F', sound: 'fuh', word: 'Fish', emoji: '🐠' },
+            { letter: 'G', sound: 'guh', word: 'Goat', emoji: '🐐' },
+            { letter: 'H', sound: 'huh', word: 'House', emoji: '🏠' },
+            { letter: 'I', sound: 'ih', word: 'Igloo', emoji: '🧊' },
+            { letter: 'J', sound: 'juh', word: 'Jam', emoji: '🍓' },
+            { letter: 'K', sound: 'kuh', word: 'Key', emoji: '🔑' },
+            { letter: 'L', sound: 'luh', word: 'Lion', emoji: '🦁' },
+            { letter: 'M', sound: 'muh', word: 'Moon', emoji: '🌙' },
+            { letter: 'N', sound: 'nuh', word: 'Nest', emoji: '🐦' },
+            { letter: 'O', sound: 'oh', word: 'Octopus', emoji: '🐙' },
+            { letter: 'P', sound: 'puh', word: 'Pig', emoji: '🐖' },
+            { letter: 'Q', sound: 'kwuh', word: 'Queen', emoji: '👑' },
+            { letter: 'R', sound: 'ruh', word: 'Rabbit', emoji: '🐇' },
+            { letter: 'S', sound: 'suh', word: 'Sun', emoji: '☀️' },
+            { letter: 'T', sound: 'tuh', word: 'Tree', emoji: '🌳' },
+            { letter: 'U', sound: 'uh', word: 'Umbrella', emoji: '☔' },
+            { letter: 'V', sound: 'vuh', word: 'Van', emoji: '🚐' },
+            { letter: 'W', sound: 'wuh', word: 'Water', emoji: '💧' },
+            { letter: 'X', sound: 'ks', word: 'Xylophone', emoji: '🎹' },
+            { letter: 'Y', sound: 'yuh', word: 'Yacht', emoji: '⛵' },
+            { letter: 'Z', sound: 'zuh', word: 'Zebra', emoji: '🦓' },
+        ];
 
-        // Enable debug logging for Firestore/Firebase
-        setLogLevel('Debug');
 
-        // Global Firebase Instances (accessible in the window scope)
-        window.db = null;
-        window.auth = null;
-        window.currentUserId = null;
-        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // --- Firebase Initialization and Auth ---
+        window.initializeFirebase = async () => {
+            if (!firebaseConfig) {
+                console.error("Firebase config is missing. Running in non-data mode.");
+                // Still allow UI to load even if firebase is missing
+                userId = crypto.randomUUID(); 
+                appState.isAuthReady = true;
+                document.getElementById('user-id-display').textContent = userId;
+                return;
+            }
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('error'); // Only log errors to keep console clean
 
-        // Display app ID immediately
-        document.getElementById('app-id-display').textContent = window.appId;
-
-        // --- Firebase Initialization and Authentication ---
-
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-
-        try {
-            const app = initializeApp(firebaseConfig);
-            window.db = getFirestore(app);
-            window.auth = getAuth(app);
-            
-            // 1. Handle Authentication
-            onAuthStateChanged(window.auth, async (user) => {
-                if (user) {
-                    window.currentUserId = user.uid;
-                    document.getElementById('user-id-display').textContent = user.uid;
-                    await fetchOrCreateUser(user.uid);
-                    // Start listening for Learner updates immediately after authentication
-                    setupLearnerListener(user.uid); 
-
-                } else {
-                    // Sign in if not already authenticated (e.g., after initial sign-in attempt fails)
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(window.auth, __initial_auth_token);
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        // console.log("User authenticated:", userId);
+                    } else {
+                        // Sign in anonymously if no token is available or initial state is null
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
                         } else {
-                            await signInAnonymously(window.auth);
+                            await signInAnonymously(auth);
                         }
-                    } catch (error) {
-                        console.error("Firebase Auth Error:", error);
-                        document.getElementById('user-id-display').textContent = "Authentication Failed";
                     }
-                }
-            });
-
-        } catch (e) {
-            console.error("Failed to initialize Firebase:", e);
-        }
-
-        /**
-         * Fetches the user profile or creates a new one if it doesn't exist,
-         * then applies personalization settings.
-         * @param {string} userId The current user's UID.
-         */
-        async function fetchOrCreateUser(userId) {
-            const docRef = doc(window.db, `artifacts/${window.appId}/users/${userId}/user_profiles`, "profile");
-            
-            try {
-                const docSnap = await getDoc(docRef);
-
-                if (docSnap.exists()) {
-                    // User Profile Found - Load Preferences
-                    const userData = docSnap.data();
-                    console.log("User data loaded:", userData);
-                    document.getElementById('user-role-display').textContent = userData.role;
-                    
-                    window.appState.userRole = userData.role; // Store role in global state
-                    window.setLanguage(userData.languagePreference || 'am');
-
-                } else {
-                    // No profile found - Create a new default profile
-                    console.log("Creating new user profile...");
-                    const newUserProfile = {
-                        id: userId,
-                        name: "Caregiver " + userId.substring(0, 4),
-                        email: userId + "@meqenet.eth",
-                        passwordHash: "N/A",
-                        role: "caregiver", // Default role
-                        languagePreference: 'am', 
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                    };
-                    
-                    await setDoc(docRef, newUserProfile);
-                    document.getElementById('user-role-display').textContent = newUserProfile.role;
-                    window.appState.userRole = newUserProfile.role;
-                    window.setLanguage(newUserProfile.languagePreference);
-                }
-            } catch (error) {
-                console.error("Error fetching or creating user profile:", error);
-            }
-        }
-
-        /**
-         * Sets up real-time listener for the user's enrolled learners.
-         * Learners are stored in the user's private collection.
-         * Path: /artifacts/{appId}/users/{userId}/learners/{learnerId}
-         * @param {string} userId 
-         */
-        function setupLearnerListener(userId) {
-            if (!window.db) {
-                console.warn("Firestore not initialized for learner listener.");
-                return;
-            }
-
-            const learnersColRef = collection(window.db, `artifacts/${window.appId}/users/${userId}/learners`);
-            const learnersQuery = query(learnersColRef); // No filtering needed, we fetch all for this user
-
-            // onSnapshot provides real-time updates
-            onSnapshot(learnersQuery, (snapshot) => {
-                const learners = [];
-                snapshot.forEach(doc => {
-                    learners.push({ id: doc.id, ...doc.data() });
+                    userId = auth.currentUser?.uid || crypto.randomUUID();
+                    appState.isAuthReady = true;
+                    document.getElementById('user-id-display').textContent = userId;
+                    // Once authenticated, start listening for data
+                    setupRealtimeListeners(); 
                 });
-                
-                // Store in global state and render the list
-                window.appState.learners = learners;
-                window.renderLearnerList(learners);
+            } catch (error) {
+                console.error("Firebase initialization or authentication failed:", error);
+            }
+        };
+
+        // --- Firestore Data Paths ---
+        const getLearnersCollectionPath = (uid) => `/artifacts/${appId}/users/${uid}/learners`;
+
+        // --- Firestore Realtime Listeners ---
+        function setupRealtimeListeners() {
+            if (!db || !userId) return;
+
+            // 1. Listen for Learners
+            const learnersRef = collection(db, getLearnersCollectionPath(userId));
+            onSnapshot(learnersRef, (snapshot) => {
+                appState.learners = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderLearnersList();
+                // console.log("Learners data updated.");
             }, (error) => {
-                console.error("Error listening to learner data:", error);
+                console.error("Error listening to learners:", error);
             });
         }
-    </script>
 
-    <!-- Application Logic -->
-    <script>
-        // --- Core Data and State Management ---
-        
-        let appState = {
-            module: 'literacy', 
-            language: 'am', 
-            textSize: 'extra-large',
-            contrastMode: 'standard',
-            currentIndex: 0,
-            userRole: 'caregiver', // Fetched from Firestore
-            learners: [], // Real-time list of enrolled learners
-            activeLearnerId: null // NEW: Tracks which learner is currently using the app
-        };
+        // --- Text-to-Speech (TTS) Logic ---
+        window.speak = function(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                
+                // Attempt to find a smooth, clear female voice for a gentle tone.
+                // Note: Specific voice names vary by browser/OS, so we look for keywords.
+                const voices = speechSynthesis.getVoices();
+                // Prioritize voices that include 'female' and 'english'
+                const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Female')) 
+                                    || voices.find(v => v.lang.startsWith('en') && v.name.includes('Google US English')) 
+                                    || voices.find(v => v.lang.startsWith('en')); // Fallback to any English voice
 
-        window.appState = appState; 
+                if (preferredVoice) {
+                    utterance.voice = preferredVoice;
+                }
 
-        // --- Constants and Configuration ---
-        
-        // NEW: Map to generate a unique lesson ID based on app state
-        const LESSON_ID_MAP = {
-            'literacy': (index, lang) => `P1-LIT-${lang.toUpperCase()}-L${index + 1}`,
-            'numeracy': (index, lang) => `P1-NUM-${lang.toUpperCase()}-N${index + 1}`
-        };
-
-        const FONT_SIZES = {
-            'standard': { word: '40px', example: '1.25rem' },
-            'large': { word: '60px', example: '1.5rem' },
-            'extra-large': { word: '80px', example: '2rem' }
-        };
-
-        const CONTRAST_THEMES = {
-            standard: { bg: 'bg-gray-50', text: 'text-gray-900', secondary: 'bg-indigo-600', border: 'border-indigo-600' },
-            high: { bg: 'bg-black', text: 'text-yellow-400', secondary: 'bg-yellow-500', border: 'border-yellow-400' },
-            cognitive: { bg: 'bg-blue-100', text: 'text-gray-800', secondary: 'bg-green-600', border: 'border-green-600' },
-        };
-        
-        // Mock Data for Learning Modules
-        const LITERACY_DATA = [
-            { am: 'አ', en: 'A', om: 'A', ti: 'A', amWord: 'አፕል', enWord: 'Apple', omWord: 'Apili', tiWord: 'ኣፕል', visual: '🍎' },
-            { am: 'በ', en: 'B', om: 'B', ti: 'B', amWord: 'ኳስ', enWord: 'Ball', omWord: 'Boolii', tiWord: 'ዅዕ', visual: '⚽' },
-            { am: 'ከ', en: 'C', om: 'C', ti: 'C', amWord: 'ድመት', enWord: 'Cat', omWord: 'Adurree', tiWord: 'ድሙ', visual: '🐈' },
-            { am: 'ደ', en: 'D', om: 'D', ti: 'D', amWord: 'ውሻ', enWord: 'Dog', omWord: 'Saree', tiWord: 'ከለብ', visual: '🐕' },
-        ];
-        const NUMERACY_DATA = [
-            { num: 1, amWord: 'አንድ', enWord: 'One', omWord: 'Tokko', tiWord: 'ሓደ', visual: '⭐' },
-            { num: 2, amWord: 'ሁለት', enWord: 'Two', omWord: 'Lama', tiWord: 'ክልተ', visual: '⭐⭐' },
-            { num: 3, amWord: 'ሶስት', enWord: 'Three', omWord: 'Sadii', tiWord: 'ሰለስተ', visual: '⭐⭐⭐' },
-            { num: 4, amWord: 'አራት', enWord: 'Four', omWord: 'Afur', tiWord: 'ኣርባዕተ', visual: '⭐⭐⭐⭐' },
-            { num: 5, confl: 5, amWord: 'አምስት', enWord: 'Five', omWord: 'Shan', tiWord: 'ሓሙሽተ', visual: '⭐⭐⭐⭐⭐' },
-        ];
-        
-        // --- Utility Functions ---
-
-        function getLocalizedValue(item, key) {
-            const langCode = appState.language.toLowerCase();
-            return item[`${key}Word`] || item[langCode] || item[key] || item.enWord || item.en || 'N/A';
-        }
-        
-        /**
-         * Converts plain text to a unique UUID (simple crypto implementation)
-         */
-        function uuidv4() {
-            return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-                (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-            );
-        }
-
-        // --- View Management ---
-
-        function changeView(viewId) {
-            document.querySelectorAll('.view-container').forEach(view => {
-                view.classList.add('hidden');
-            });
-            document.getElementById(`view-${viewId}`).classList.remove('hidden');
-
-            document.getElementById('lesson-tab').classList.remove('bg-indigo-600', 'text-white');
-            document.getElementById('lesson-tab').classList.add('bg-gray-300', 'text-gray-800');
-            document.getElementById('management-tab').classList.remove('bg-indigo-600', 'text-white');
-            document.getElementById('management-tab').classList.add('bg-gray-300', 'text-gray-800');
-
-            document.getElementById(`${viewId}-tab`).classList.add('bg-indigo-600', 'text-white');
-            document.getElementById(`${viewId}-tab`).classList.remove('bg-gray-300', 'text-gray-800');
-        }
-
-        // --- UI Update and Persistence Functions ---
-
-        function applyTheme(themeKey) {
-            const theme = CONTRAST_THEMES[themeKey];
-            const body = document.getElementById('app-body');
-            const textContainer = document.getElementById('lesson-text-container');
-            
-            body.className = `${theme.bg} ${theme.text} min-h-screen`;
-            
-            const containerBaseClasses = 'p-6 my-6 border-4 rounded-xl text-center shadow-lg transition-all';
-            textContainer.className = `${containerBaseClasses} ${theme.border} ${theme.bg === 'bg-black' ? 'bg-gray-900' : 'bg-white'}`;
-            
-            appState.contrastMode = themeKey;
-        }
-
-        function updateLessonContent() {
-            const isLiteracy = appState.module === 'literacy';
-            const dataSet = isLiteracy ? LITERACY_DATA : NUMERACY_DATA;
-            const currentItem = dataSet[appState.currentIndex];
-            const langCode = appState.language;
-            
-            if (!currentItem) return;
-
-            const lessonTitleEl = document.getElementById('lesson-title');
-            const lessonVisualsEl = document.getElementById('lesson-visuals');
-            const lessonWordEl = document.getElementById('lesson-word');
-            const lessonExampleEl = document.getElementById('lesson-example');
-            
-            if (isLiteracy) {
-                lessonTitleEl.textContent = langCode === 'am' ? 'ፊደላት መማር' : 'Learning Letters';
-                lessonVisualsEl.innerHTML = currentItem.visual;
-                lessonWordEl.textContent = getLocalizedValue(currentItem, langCode);
-                lessonExampleEl.textContent = `${getLocalizedValue(currentItem, langCode)} is for ${getLocalizedValue(currentItem, langCode + 'Word')}`;
+                utterance.lang = 'en-US';
+                utterance.rate = 0.6; // Slower rate for clear, motherly/teaching tone
+                utterance.pitch = 1.1; // Slightly higher pitch for clarity/gentleness
+                
+                speechSynthesis.cancel(); // Stop any current speaking
+                speechSynthesis.speak(utterance);
             } else {
-                lessonTitleEl.textContent = langCode === 'am' ? 'ቁጥሮች መማር' : 'Learning Numbers';
-                lessonVisualsEl.innerHTML = currentItem.visual;
-                lessonWordEl.textContent = currentItem.num;
-                lessonExampleEl.textContent = getLocalizedValue(currentItem, langCode + 'Word');
+                console.warn("Text-to-Speech not supported in this browser.");
             }
-
-            // Disable quiz interaction if no learner is selected
-            const quizArea = document.getElementById('quiz-area');
-            if (appState.activeLearnerId) {
-                quizArea.classList.remove('opacity-50', 'pointer-events-none');
-            } else {
-                quizArea.classList.add('opacity-50', 'pointer-events-none');
-            }
-
-            renderQuiz();
-        }
-
-        function applyTextSize(sizeKey) {
-            const size = FONT_SIZES[sizeKey];
-            const wordElement = document.getElementById('lesson-word');
-            const exampleElement = document.getElementById('lesson-example');
-            
-            wordElement.style.fontSize = size.word;
-            exampleElement.style.fontSize = size.example;
-
-            appState.textSize = sizeKey;
         }
         
-        /**
-         * Updates the app state and the Firestore profile with the new language.
-         * @param {string} code The language code (am, en, om, ti).
-         */
-        window.setLanguage = async function(code) {
-            appState.language = code;
-            document.getElementById('lang-select').value = code;
-            updateLessonContent();
+        window.handlePhonicsClick = function(letter, sound, word) {
+            // 1. Give visual feedback
+            window.showFeedback(`${letter} is for ${word}!`, 'info');
+            
+            // 2. Play Audio Feedback: Simply speak the letter and the word (e.g., "A, Apple.")
+            const textToSpeak = `${letter}, ${word}.`; 
+            window.speak(textToSpeak);
+        }
 
-            if (window.currentUserId && window.db) {
-                try {
-                    const docRef = doc(window.db, `artifacts/${window.appId}/users/${window.currentUserId}/user_profiles`, "profile");
-                    await setDoc(docRef, { languagePreference: code, updatedAt: new Date().toISOString() }, { merge: true });
-                } catch (error) {
-                    console.error("Could not update language preference:", error);
+        // --- View Logic ---
+        window.changeView = function(newView) {
+            appState.view = newView;
+            // Ensure all view containers exist before attempting to hide/show
+            document.getElementById('lesson-view')?.classList.add('hidden');
+            document.getElementById('quiz-view')?.classList.add('hidden');
+            document.getElementById('activity-view')?.classList.add('hidden');
+            document.getElementById('manageLearners-view')?.classList.add('hidden');
+            document.getElementById('settings-view')?.classList.add('hidden');
+
+            const viewElement = document.getElementById(`${newView}-view`);
+            if (viewElement) {
+                viewElement.classList.remove('hidden');
+                
+                // Special actions for specific views
+                if (newView === 'manageLearners') {
+                    renderLearnersList();
+                } else if (newView === 'lesson') {
+                    loadModule(appState.module);
                 }
             }
-        }
+        };
 
-        /**
-         * Sets the active learner and updates the UI display.
-         * @param {string} learnerId The ID of the selected learner.
-         */
-        window.setActiveLearner = function(learnerId) {
-            appState.activeLearnerId = learnerId;
-            const displayEl = document.getElementById('active-learner-name-display');
+        // --- Accessibility and Theme Logic ---
+        window.applyTheme = function(mode) {
+            appState.contrastMode = mode;
+            const body = document.getElementById('app-body');
             
-            if (learnerId) {
-                const learner = appState.learners.find(l => l.id === learnerId);
-                displayEl.textContent = learner ? learner.name : 'Unknown Learner';
-                document.getElementById('quiz-area').classList.remove('opacity-50', 'pointer-events-none');
-                showFeedback(`Ready to track progress for ${learner.name}.`, 'success');
-            } else {
-                displayEl.textContent = 'Not Selected';
-                document.getElementById('quiz-area').classList.add('opacity-50', 'pointer-events-none');
-                showFeedback("Please select a learner before starting a lesson.", 'error');
+            // Check if body exists before accessing properties
+            if (!body) return;
+
+            // Reset classes
+            body.className = 'min-h-screen ' + (mode === 'high' ? 'bg-black text-yellow-300' : 'bg-gray-50 text-gray-900');
+            
+            // Re-apply styles to cards globally
+            document.querySelectorAll('.section-card').forEach(el => {
+                if (mode === 'high') {
+                    el.classList.remove('bg-white', 'text-gray-900');
+                    el.classList.add('bg-gray-900', 'text-yellow-300', 'border-yellow-300');
+                } else {
+                    el.classList.add('bg-white', 'text-gray-900');
+                    el.classList.remove('bg-gray-900', 'text-yellow-300', 'border-yellow-300');
+                }
+            });
+
+            document.getElementById('contrast-mode-label').textContent = mode === 'high' ? 'High Contrast (On)' : 'Normal Contrast (Off)';
+        };
+
+        window.applyTextSize = function(size) {
+            appState.textSize = size;
+            const sizeMap = {
+                'small': 'text-base',
+                'medium': 'text-xl',
+                'large': 'text-3xl'
+            };
+            const contentArea = document.getElementById('content-area');
+            if (contentArea) {
+                 contentArea.className = `p-4 flex-grow ${sizeMap[size]}`;
             }
-            updateLessonContent(); // Updates quiz interaction state
+            document.getElementById('text-size-label').textContent = size.charAt(0).toUpperCase() + size.slice(1);
+        };
+
+        // --- Module Content Logic (ENHANCED FOR SEN) ---
+
+        function getContent(moduleName) {
+            switch (moduleName) {
+                case 'Literacy':
+                    return `
+                        <h2 class="text-4xl font-extrabold mb-6 text-indigo-700">Phonics & Sight Words</h2>
+                        <p class="mb-4">Tap a tile to hear the letter and the corresponding word. Multisensory learning helps us remember!</p>
+                        <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4 mt-6">
+                            ${PHONICS_DATA.map(item => 
+                                `<button 
+                                    class="large-touch-target bg-indigo-500 hover:bg-indigo-600 text-white p-4 flex flex-col items-center justify-center space-y-2"
+                                    onclick="window.handlePhonicsClick('${item.letter}', '${item.sound}', '${item.word}')"
+                                >
+                                    <span class="text-6xl font-black">${item.letter}</span>
+                                    <span class="text-5xl">${item.emoji}</span>
+                                    <span class="text-xl font-bold">${item.word}</span>
+                                </button>`
+                            ).join('')}
+                        </div>
+                    `;
+                case 'Numeracy':
+                    return `
+                        <h2 class="text-4xl font-extrabold mb-6 text-green-700">1 - 100 Counting & Matching</h2>
+                        <p class="mb-4">Practice counting forwards and backwards. Use manipulatives (physical objects) to match the number displayed on the screen.</p>
+                        <div class="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-10 gap-2 mt-6">
+                            ${Array.from({length: 20}, (_, i) => i + 1).map(n => 
+                                `<button class="large-touch-target bg-green-500 hover:bg-green-600 text-white text-3xl">${n}</button>`
+                            ).join('')}
+                            <div class="col-span-full mt-4 text-center text-2xl font-semibold text-gray-600">...and more numbers!</div>
+                        </div>
+                    `;
+                case 'SocialSkills':
+                    return renderSocialSkillsContent();
+                case 'LifeSkills':
+                    return renderLifeSkillsContent();
+                default:
+                    return `<p class="text-red-500">Module content not found.</p>`;
+            }
         }
 
-        // --- Lesson/Quiz Functions ---
+        function renderSocialSkillsContent() {
+            const emotions = [
+                { name: 'Happy', emoji: '😊', color: 'yellow' },
+                { name: 'Sad', emoji: '😢', color: 'blue' },
+                { name: 'Angry', emoji: '😡', color: 'red' },
+                { name: 'Calm', emoji: '😌', color: 'green' }
+            ];
 
-        function loadModule(moduleKey) {
-            appState.module = moduleKey;
-            appState.currentIndex = 0;
-            
-            const tabs = { literacy: 'lesson-literacy-tab', numeracy: 'lesson-numeracy-tab' };
-            
-            document.getElementById(tabs[moduleKey]).classList.replace('bg-gray-300', 'bg-indigo-600');
-            document.getElementById(tabs[moduleKey]).classList.replace('text-gray-800', 'text-white');
-            
-            const otherModule = moduleKey === 'literacy' ? 'numeracy' : 'literacy';
-            document.getElementById(tabs[otherModule]).classList.replace('bg-indigo-600', 'bg-gray-300');
-            document.getElementById(tabs[otherModule]).classList.replace('text-white', 'text-gray-800');
-
-            updateLessonContent();
+            return `
+                <h2 class="text-4xl font-extrabold mb-6 text-purple-700">Understanding Feelings</h2>
+                <p class="mb-6">Look at the face and say how the person feels. Try to make the same face in the mirror!</p>
+                <div class="grid grid-cols-2 gap-6 mt-6 max-w-2xl mx-auto">
+                    ${emotions.map(e => `
+                        <div class="section-card flex flex-col items-center p-6 bg-white border-4 border-gray-200 shadow-xl">
+                            <span class="text-8xl">${e.emoji}</span>
+                            <button 
+                                class="mt-4 large-touch-target w-full bg-${e.color}-500 hover:bg-${e.color}-600 text-white text-3xl"
+                                onclick="window.showFeedback('Great job! ${e.name}!', 'success')"
+                            >
+                                ${e.name}
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+                <div id="quiz-message" class="mt-4 text-center text-xl font-bold"></div>
+            `;
         }
         
-        function navigateContent(direction) {
-            const dataSet = appState.module === 'literacy' ? LITERACY_DATA : NUMERACY_DATA;
-            let newIndex = appState.currentIndex;
+        function renderLifeSkillsContent() {
+            const steps = [
+                { text: '1. Turn on the water and wet your hands.', icon: '💧' },
+                { text: '2. Get some soap.', icon: '🧼' },
+                { text: '3. Rub your hands together: front, back, and between fingers.', icon: '👏' },
+                { text: '4. Rinse your hands with clean water.', icon: '🚿' },
+                { text: '5. Dry your hands with a clean towel.', icon: '✅' }
+            ];
+
+            return `
+                <h2 class="text-4xl font-extrabold mb-6 text-orange-700">Life Skill: Washing Hands</h2>
+                <p class="mb-6">This is a social story. Follow the steps in order to learn how to wash your hands. Say the steps out loud!</p>
+                <div class="flex flex-col space-y-4 max-w-3xl mx-auto">
+                    ${steps.map((step, index) => `
+                        <div class="section-card flex items-center p-4 bg-white border-l-8 border-orange-500 shadow-md">
+                            <span class="text-4xl mr-4">${step.icon}</span>
+                            <span class="font-semibold text-2xl">${step.text}</span>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="mt-8 text-center">
+                    <button 
+                        class="large-touch-target bg-orange-500 hover:bg-orange-600 text-white text-3xl px-8"
+                        onclick="window.showFeedback('Try to do this after every time you use the bathroom or before you eat!', 'info')"
+                    >
+                        Practice Now
+                    </button>
+                </div>
+            `;
+        }
+
+        window.loadModule = function(moduleName) {
+            appState.module = moduleName;
+            document.getElementById('module-title').textContent = moduleName;
             
-            if (direction === 'next') {
-                newIndex = (appState.currentIndex + 1) % dataSet.length;
-            } else if (direction === 'prev') {
-                newIndex = (appState.currentIndex - 1 + dataSet.length) % dataSet.length;
-            }
-            
-            appState.currentIndex = newIndex;
-            updateLessonContent();
-        }
-
-        function setContrastMode(mode) {
-            applyTheme(mode);
-        }
-
-        function setTextSize(size) {
-            applyTextSize(size);
-        }
-
-        function playAudioHint() {
-            const currentItem = appState.module === 'literacy' ? LITERACY_DATA[appState.currentIndex] : NUMERACY_DATA[appState.currentIndex];
-            const word = getLocalizedValue(currentItem, appState.language + 'Word');
-
-            const audioLabel = document.getElementById('audio-button').querySelector('span');
-            audioLabel.textContent = "🔊 Speaking: " + word.substring(0, 10) + '...';
-            document.getElementById('audio-button').disabled = true;
-
-            setTimeout(() => {
-                audioLabel.textContent = "Speak";
-                document.getElementById('audio-button').disabled = false;
-            }, 1800);
-        }
-
-        function showSignLanguage() {
-            showFeedback("Simulating Ethiopian Sign Language Video for this concept.", 'info');
-        }
-
-        /**
-         * Handles quiz selection and records progress if correct.
-         */
-        function handleQuizSelection(isCorrect) {
-            if (!appState.activeLearnerId) {
-                showFeedback("Please select an active learner first!", 'error');
-                return;
+            const contentAreaMain = document.getElementById('content-area-main');
+            if (contentAreaMain) {
+                 contentAreaMain.innerHTML = getContent(moduleName);
             }
 
-            const message = isCorrect ? "🎉 Excellent! (ታላቅ!)" : "Try again. (እንደገና ሞክር).";
-            const type = isCorrect ? 'success' : 'error';
-            
-            showFeedback(message, type);
-
-            if (isCorrect) {
-                // NEW: Save progress and move to the next step
-                saveLessonProgress(100); // 100% score for correct answer
-                setTimeout(() => navigateContent('next'), 1500);
-            }
-        }
-
-        /**
-         * Saves a LessonProgress record to Firestore.
-         * Corresponds to the LessonProgress data model:
-         * - learnerId (FK)
-         * - lessonId (FK) - generated using LESSON_ID_MAP
-         * - completionStatus (completed for this step)
-         * - score (100 or 0)
-         * - lastUpdated
-         */
-        async function saveLessonProgress(score) {
-            if (!window.db || !appState.activeLearnerId || !window.currentUserId) {
-                console.warn("Cannot save progress: Missing database connection or active learner.");
-                return;
-            }
-
-            const lessonId = LESSON_ID_MAP[appState.module](appState.currentIndex, appState.language);
-            const progressCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.currentUserId}/lesson_progress`);
-            
-            const progressRecord = {
-                learnerId: appState.activeLearnerId,
-                lessonId: lessonId,
-                completionStatus: 'completed',
-                score: score,
-                module: appState.module,
-                language: appState.language,
-                lastUpdated: new Date().toISOString(),
-                teacherId: window.currentUserId, // Store the user (teacher/caregiver) who recorded the progress
-            };
-
-            try {
-                // Add the progress record (a new document for each successful step)
-                await addDoc(progressCollectionRef, progressRecord);
-                console.log(`Progress saved for Learner ${appState.activeLearnerId} on lesson ${lessonId}.`);
-            } catch (error) {
-                console.error("Error saving lesson progress:", error);
-            }
-        }
-
-        function renderQuiz() {
-            const isLiteracy = appState.module === 'literacy';
-            const currentItem = isLiteracy ? LITERACY_DATA[appState.currentIndex] : NUMERACY_DATA[appState.currentIndex];
-            const langCode = appState.language;
-            const optionsContainer = document.getElementById('quiz-options');
-            optionsContainer.innerHTML = '';
-            
-            let correctOption, decoyData;
-            
-            if (isLiteracy) {
-                decoyData = LITERACY_DATA[(appState.currentIndex + 1) % LITERACY_DATA.length];
-            } else {
-                const decoyNum = (currentItem.num % NUMERACY_DATA.length) + 1;
-                decoyData = NUMERACY_DATA.find(d => d.num === decoyNum) || NUMERACY_DATA[0];
-            }
-
-            const correctOptionData = { label: getLocalizedValue(currentItem, langCode + 'Word'), visual: currentItem.visual, correct: true };
-            const decoyOptionData = { label: getLocalizedValue(decoyData, langCode + 'Word'), visual: decoyData.visual, correct: false };
-
-            const options = [correctOptionData, decoyOptionData].sort(() => Math.random() - 0.5);
-
-            options.forEach(option => {
-                const button = document.createElement('button');
-                button.className = 'large-touch-target bg-white text-gray-800 border-2 border-indigo-300 hover:bg-indigo-100 flex flex-col items-center justify-center';
-                button.innerHTML = `<span class="text-3xl">${option.label}</span><span class="text-4xl mt-2">${option.visual}</span>`;
-                button.onclick = () => handleQuizSelection(option.correct);
-                optionsContainer.appendChild(button);
+            // Update module buttons active state
+            const buttons = document.querySelectorAll('.module-button');
+            buttons.forEach(btn => {
+                if (btn.dataset.module === moduleName) {
+                    btn.classList.add('bg-indigo-600', 'text-white');
+                    btn.classList.remove('bg-gray-200', 'text-gray-700');
+                } else {
+                    btn.classList.remove('bg-indigo-600', 'text-white');
+                    btn.classList.add('bg-gray-200', 'text-gray-700');
+                }
             });
-        }
-
-        function showFeedback(message, type) {
+        };
+        
+        // General feedback mechanism for activities
+        window.showFeedback = function(message, type) {
             const quizMessage = document.getElementById('quiz-message');
-            quizMessage.textContent = message;
+            // Use the main feedback area if 'quiz-message' isn't available in this view
+            const feedbackEl = quizMessage || document.getElementById('main-feedback'); 
+            
+            if (!feedbackEl) return; 
+            
+            feedbackEl.textContent = message;
             
             if (type === 'success') {
-                quizMessage.className = 'mt-4 text-center text-3xl font-bold text-green-600';
+                feedbackEl.className = 'mt-4 text-center text-3xl font-bold text-green-600';
             } else if (type === 'error') {
-                quizMessage.className = 'mt-4 text-center text-3xl font-bold text-red-600';
+                feedbackEl.className = 'mt-4 text-center text-3xl font-bold text-red-600';
             } else { // info
-                quizMessage.className = 'mt-4 text-center text-3xl font-bold text-blue-600';
+                feedbackEl.className = 'mt-4 text-center text-3xl font-bold text-blue-600';
             }
 
+            // Clear message after 3 seconds
             setTimeout(() => {
-                quizMessage.textContent = '';
-                quizMessage.className = 'mt-4 text-center text-xl font-bold';
+                feedbackEl.textContent = '';
+                // Reset to a neutral class
+                feedbackEl.className = 'mt-4 text-center text-xl font-bold'; 
             }, 3000);
         }
 
-        // --- Learner Management Functions ---
+        // --- Learner Management Logic (Simplified for brevity, core functions remain) ---
+        
+        function renderLearnersList() {
+            const list = document.getElementById('learners-list');
+            if (!list) return; // Exit if element is not in the current view
 
-        /**
-         * Renders the real-time list of learners fetched from Firestore.
-         * Now also populates the Active Learner Selector.
-         */
-        window.renderLearnerList = function(learners) {
-            const listEl = document.getElementById('learner-list');
-            const countEl = document.getElementById('learner-count');
-            const noLearnersMessage = document.getElementById('no-learners-message');
-            const selectEl = document.getElementById('active-learner-select');
+            if (!appState.isAuthReady) {
+                 list.innerHTML = `<p class="text-xl text-center text-blue-500">Loading learners...</p>`;
+                 return;
+            }
 
-            listEl.innerHTML = '';
-            selectEl.innerHTML = '<option value="">-- Select Learner to Start Lesson --</option>';
-            countEl.textContent = learners.length;
-
-            if (learners.length === 0) {
-                noLearnersMessage.classList.remove('hidden');
-                listEl.appendChild(noLearnersMessage);
-                window.setActiveLearner(null);
+            if (appState.learners.length === 0) {
+                list.innerHTML = `<p class="text-xl text-center text-gray-500">No learners registered yet. Use the form above to add one!</p>`;
                 return;
             }
-            noLearnersMessage.classList.add('hidden');
 
-            learners.forEach(learner => {
-                // Populate Learner List
-                const item = document.createElement('div');
-                item.className = 'p-4 border border-gray-200 rounded-lg flex justify-between items-center bg-white shadow-sm hover:shadow-md transition-shadow';
-                item.innerHTML = `
-                    <div>
-                        <p class="text-lg font-bold text-indigo-700">${learner.name} <span class="text-sm font-normal text-gray-500">(${learner.gender}, ${learner.age})</span></p>
-                        <p class="text-sm text-gray-600">Grade: ${learner.grade} | Disability: ${learner.disabilityType}</p>
-                        <p class="text-xs text-gray-400 mt-1 break-all">ID: ${learner.id.substring(0, 8)}...</p>
+            list.innerHTML = appState.learners.map(learner => `
+                <div class="flex justify-between items-center p-4 bg-gray-50 rounded-lg shadow-sm border border-gray-200 mb-2">
+                    <div class="flex-grow">
+                        <p class="text-2xl font-semibold">${learner.name}</p>
+                        <p class="text-lg text-gray-600">ID: <span class="font-mono text-sm bg-gray-200 p-1 rounded">${learner.id.substring(0, 8)}...</span></p>
+                        <p class="text-lg text-gray-600">Focus: ${learner.focus || 'N/A'}</p>
                     </div>
-                    <button class="bg-blue-100 text-blue-700 text-sm font-semibold py-1 px-3 rounded-full hover:bg-blue-200" onclick="alert('TODO: Load progress for learner ${learner.id}')">View Progress</button>
-                `;
-                listEl.appendChild(item);
-
-                // Populate Selector Dropdown
-                const option = document.createElement('option');
-                option.value = learner.id;
-                option.textContent = `${learner.name} (${learner.grade})`;
-                selectEl.appendChild(option);
-            });
-            
-            // Re-set active learner if possible (e.g., after initial load or new learner added)
-            if (appState.activeLearnerId && learners.find(l => l.id === appState.activeLearnerId)) {
-                selectEl.value = appState.activeLearnerId;
-                window.setActiveLearner(appState.activeLearnerId);
-            } else if (!appState.activeLearnerId) {
-                 window.setActiveLearner(null); // Ensure state is null if not selected
-            }
+                    <button 
+                        onclick="window.deleteLearner('${learner.id}', '${learner.name}')" 
+                        class="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-150"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M14 6V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"></path></svg>
+                    </button>
+                </div>
+            `).join('');
         }
 
-        /**
-         * Handles the submission of the Add Learner form.
-         */
-        document.getElementById('add-learner-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        window.deleteLearner = async function(learnerId, name) {
+            // Using a custom modal UI for confirmation
+            const modal = document.getElementById('custom-modal');
+            const modalMessage = document.getElementById('modal-message');
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+            const cancelBtn = document.getElementById('modal-cancel-btn');
             
-            const formMessageEl = document.getElementById('learner-form-message');
-            formMessageEl.textContent = "Registering learner...";
-            formMessageEl.className = 'mt-4 text-center font-semibold text-blue-500';
+            modalMessage.textContent = `Are you sure you want to delete the learner '${name}'? This cannot be undone.`;
+            modal.classList.remove('hidden');
 
-            if (!window.currentUserId || !window.db) {
-                showFormFeedback("Authentication error. Please refresh.", 'error');
+            const handleConfirm = async () => {
+                modal.classList.add('hidden');
+                modalMessage.textContent = '';
+                // Important: Remove listeners to prevent multiple executions
+                confirmBtn.removeEventListener('click', handleConfirm);
+                cancelBtn.removeEventListener('click', handleCancel);
+
+                try {
+                    if (!db || !userId) throw new Error("Database or user not ready.");
+                    const docRef = doc(db, getLearnersCollectionPath(userId), learnerId);
+                    await deleteDoc(docRef);
+                    showFormFeedback(`✅ Learner '${name}' deleted successfully!`, 'success');
+                } catch (error) {
+                    console.error("Error deleting learner:", error);
+                    showFormFeedback(`❌ Failed to delete learner: ${error.message}`, 'error');
+                }
+            };
+
+            const handleCancel = () => {
+                modal.classList.add('hidden');
+                modalMessage.textContent = '';
+                // Important: Remove listeners to prevent multiple executions
+                confirmBtn.removeEventListener('click', handleConfirm);
+                cancelBtn.removeEventListener('click', handleCancel);
+                showFormFeedback('Deletion cancelled.', 'info');
+            };
+
+            // Re-attach listeners for the specific action
+            confirmBtn.addEventListener('click', handleConfirm);
+            cancelBtn.addEventListener('click', handleCancel);
+        };
+
+        window.addLearner = async function(event) {
+            event.preventDefault();
+            if (!db || !userId) {
+                showFormFeedback("❌ System not ready. Try again in a moment.", 'error');
                 return;
             }
 
-            const newLearner = {
-                // Unique ID will be generated by Firestore
-                name: document.getElementById('learner-name').value,
-                age: parseInt(document.getElementById('learner-age').value),
-                grade: document.getElementById('learner-grade').value,
-                gender: document.getElementById('learner-gender').value,
-                disabilityType: document.getElementById('learner-disability').value,
-                // schoolId (FK) is omitted for this MVP but would be added here in a full system
-                enrolledAt: new Date().toISOString(),
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-            };
+            const form = document.getElementById('add-learner-form');
+            const name = form.learnerName.value.trim();
+            const dob = form.learnerDOB.value;
+            const focus = form.learnerFocus.value.trim();
+            
+            if (!name || !focus) {
+                showFormFeedback("Name and Focus Area are required.", 'error');
+                return;
+            }
 
             try {
-                // Save the new learner to the current user's private learners collection
-                const learnersColRef = collection(window.db, `artifacts/${window.appId}/users/${window.currentUserId}/learners`);
-                const docRef = await addDoc(learnersColRef, newLearner);
-                
-                showFormFeedback(`✅ Learner "${newLearner.name}" successfully registered! ID: ${docRef.id.substring(0, 5)}...`, 'success');
+                const learnersRef = collection(db, getLearnersCollectionPath(userId));
+                const newLearner = {
+                    name: name,
+                    dob: dob || null,
+                    focus: focus,
+                    createdAt: new Date().toISOString()
+                };
+
+                const docRef = await addDoc(learnersRef, newLearner);
+                showFormFeedback(`✅ Learner registered! ID: ${docRef.id.substring(0, 5)}...`, 'success');
                 document.getElementById('add-learner-form').reset();
             } catch (error) {
                 console.error("Error adding new learner:", error);
                 showFormFeedback("❌ Failed to register learner. Check console for details.", 'error');
             }
-        });
+        };
 
         function showFormFeedback(message, type) {
             const formMessageEl = document.getElementById('learner-form-message');
@@ -821,16 +493,217 @@
                 formMessageEl.className = 'mt-4 text-center font-semibold';
             }, 5000);
         }
+        
+        // --- Custom Modal Logic (for delete confirmation) ---
+        window.closeModal = function() {
+            document.getElementById('custom-modal').classList.add('hidden');
+        }
+
 
         // Initial setup on load
         window.onload = function() {
-            applyTheme(appState.contrastMode);
-            applyTextSize(appState.textSize);
-            loadModule(appState.module); 
-            
-            // Default to Lesson View
-            changeView('lesson');
+            try {
+                // 1. Initialize Firebase (async, but starts here)
+                window.initializeFirebase(); 
+                
+                // 2. Apply initial visual settings
+                applyTheme(appState.contrastMode);
+                applyTextSize(appState.textSize);
+                
+                // 3. Load the default module content and view
+                loadModule(appState.module); 
+                changeView('lesson');
+
+            } catch (error) {
+                console.error("Fatal error during app initialization:", error);
+                // Display a user-friendly error message if possible
+                document.getElementById('content-area-main').innerHTML = `
+                    <div class="text-center text-red-600 text-3xl p-10">
+                        An error occurred while starting the app. Please check the console for details.
+                    </div>
+                `;
+            }
         };
+
     </script>
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            transition: background-color 0.3s, color 0.3s; 
+            /* Disable selection for touch apps */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        .large-touch-target {
+            padding: 1rem;
+            border-radius: 0.75rem;
+            font-weight: bold;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+            cursor: pointer;
+        }
+        .section-card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s;
+        }
+        /* Mobile Navigation Styling */
+        @media (max-width: 640px) {
+            .nav-button-text {
+                display: none;
+            }
+        }
+        /* Custom size for the multisensory letter tiles */
+        #content-area-main .large-touch-target {
+            min-height: 180px;
+        }
+    </style>
+</head>
+<body id="app-body" class="bg-gray-50 text-gray-900 min-h-screen">
+
+    <!-- Custom Confirmation Modal (Replaces alert/confirm) -->
+    <div id="custom-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full">
+            <h3 class="text-2xl font-bold mb-4 text-red-600">Confirm Action</h3>
+            <p id="modal-message" class="text-xl mb-6 text-gray-700"></p>
+            <div class="flex justify-end space-x-4">
+                <button id="modal-cancel-btn" onclick="window.closeModal()" class="px-6 py-3 bg-gray-300 text-gray-800 font-semibold rounded-lg hover:bg-gray-400 transition">Cancel</button>
+                <button id="modal-confirm-btn" class="px-6 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- Header and Controls -->
+        <header class="flex flex-col sm:flex-row justify-between items-center mb-6 section-card bg-white p-4">
+            <h1 class="text-5xl font-extrabold text-indigo-700 mb-4 sm:mb-0">Meqenet Learner</h1>
+            <nav class="flex space-x-2 text-xl">
+                <button onclick="window.changeView('lesson')" class="p-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-semibold transition">Lessons</button>
+                <button onclick="window.changeView('manageLearners')" class="p-3 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-semibold transition">Manage Learners</button>
+                <button onclick="window.changeView('settings')" class="p-3 rounded-xl bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold transition">Settings</button>
+            </nav>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+            <!-- Sidebar: Module Selection -->
+            <aside class="lg:col-span-1 section-card p-4">
+                <h2 class="text-3xl font-bold mb-4 text-gray-700"></h2>
+                <div class="flex flex-col space-y-3" id="module-selection">
+                    <!-- Buttons for Modules -->
+                  
+                        <button 
+                            class="module-button large-touch-target text-2xl w-full text-left bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+                            data-module="${module}"
+                            onclick="window.load  ' $1').trim()}
+                        </button>
+                    `).join('')}
+                </div>
+            </aside>
+
+            <!-- Content Panel -->
+            <section id="content-panel" class="lg:col-span-3 section-card">
+
+                <!-- Lesson/Quiz/Activity View -->
+                <div id="lesson-view">
+                    <h2 id="module-title" class="text-5xl font-black mb-6 text-center text-indigo-800">Literacy</h2>
+                    <div id="content-area" class="p-4 flex-grow text-xl">
+                        <div id="content-area-main" class="section-card p-8 bg-gray-50 min-h-[50vh] flex flex-col justify-center">
+                            <!-- Content generated by getContent(appState.module) will load here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Feedback Area (Used by showFeedback for Lesson View) -->
+                <div id="main-feedback" class="mt-4 text-center text-xl font-bold"></div>
+
+                <!-- Quiz View (Hidden by default) -->
+                <div id="quiz-view" class="hidden">
+                    <h2 class="text-4xl font-extrabold mb-6 text-red-600">Quiz Corner</h2>
+                    <div class="section-card p-8 bg-red-50 min-h-[50vh] flex flex-col justify-center items-center">
+                        <p class="text-3xl text-red-800 font-medium">Coming Soon: Interactive Quizzes!</p>
+                        <p class="text-xl text-red-600 mt-4">For now, use the Lesson View for content.</p>
+                    </div>
+                </div>
+
+                <!-- Activity View (Hidden by default) -->
+                <div id="activity-view" class="hidden">
+                    <h2 class="text-4xl font-extrabold mb-6 text-yellow-600">Hands-On Activity</h2>
+                    <div class="section-card p-8 bg-yellow-50 min-h-[50vh] flex flex-col justify-center items-center">
+                        <p class="text-3xl text-yellow-800 font-medium">Coming Soon: Games & Interactive Activities!</p>
+                        <p class="text-xl text-yellow-600 mt-4">For now, focus on the content in the Lesson View.</p>
+                    </div>
+                </div>
+
+                <!-- Manage Learners View (Hidden by default) -->
+                <div id="manageLearners-view" class="hidden">
+                    <h2 class="text-4xl font-extrabold mb-6 text-purple-700">Learner Management</h2>
+                    
+                    <div class="mb-8 section-card p-6 bg-purple-50">
+                        <h3 class="text-3xl font-bold mb-4 text-purple-800">Register New Learner</h3>
+                        <form id="add-learner-form" onsubmit="window.addLearner(event)" class="space-y-4">
+                            <input type="text" name="learnerName" placeholder="Learner Full Name (Required)" required 
+                                class="w-full p-3 border-2 border-purple-300 rounded-lg text-xl focus:ring-2 focus:ring-purple-500">
+                            <input type="date" name="learnerDOB" placeholder="Date of Birth (Optional)" 
+                                class="w-full p-3 border-2 border-purple-300 rounded-lg text-xl focus:ring-2 focus:ring-purple-500">
+                            <textarea name="learnerFocus" placeholder="Primary Focus Area (e.g., Autism, Down Syndrome, Communication) (Required)" required
+                                class="w-full p-3 border-2 border-purple-300 rounded-lg text-xl h-24 focus:ring-2 focus:ring-purple-500"></textarea>
+                            
+                            <button type="submit" class="large-touch-target w-full bg-purple-600 hover:bg-purple-700 text-white text-2xl">
+                                Register Learner
+                            </button>
+                        </form>
+                        <div id="learner-form-message" class="mt-4 text-center font-semibold text-xl"></div>
+                    </div>
+
+                    <div class="mt-8">
+                        <h3 class="text-3xl font-bold mb-4 text-purple-800">Registered Learners</h3>
+                        <div id="learners-list" class="space-y-4">
+                            <p class="text-xl text-center text-blue-500">Loading learners...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings View (Hidden by default) -->
+                <div id="settings-view" class="hidden">
+                    <h2 class="text-4xl font-extrabold mb-6 text-gray-700">Accessibility Settings</h2>
+                    
+                    <div class="section-card mb-6">
+                        <h3 class="text-3xl font-bold mb-4 text-gray-800">Contrast Mode</h3>
+                        <div class="flex space-x-4">
+                            <button onclick="window.applyTheme('normal')" class="large-touch-target bg-gray-300 hover:bg-gray-400 text-gray-800 text-2xl">Normal</button>
+                            <button onclick="window.applyTheme('high')" class="large-touch-target bg-black hover:bg-gray-800 text-yellow-300 text-2xl">High Contrast</button>
+                        </div>
+                        <p id="contrast-mode-label" class="mt-4 text-xl font-medium">Normal Contrast (Off)</p>
+                    </div>
+
+                    <div class="section-card">
+                        <h3 class="text-3xl font-bold mb-4 text-gray-800">Text Size</h3>
+                        <div class="flex space-x-4">
+                            <button onclick="window.applyTextSize('small')" class="large-touch-target bg-blue-500 hover:bg-blue-600 text-white text-xl">A Small</button>
+                            <button onclick="window.applyTextSize('medium')" class="large-touch-target bg-blue-500 hover:bg-blue-600 text-white text-3xl">A Medium</button>
+                            <button onclick="window.applyTextSize('large')" class="large-touch-target bg-blue-500 hover:bg-blue-600 text-white text-5xl">A Large</button>
+                        </div>
+                        <p id="text-size-label" class="mt-4 text-xl font-medium">Medium</p>
+                    </div>
+
+                    <div class="mt-8 section-card p-6 bg-gray-100">
+                        <h3 class="text-3xl font-bold mb-4 text-gray-800">App Info</h3>
+                        <p class="text-xl text-gray-700">User ID: <span id="user-id-display" class="font-mono bg-gray-200 p-1 rounded">Loading...</span></p>
+                    </div>
+
+                </div>
+                
+            </section>
+
+        </main>
+    </div>
+
 </body>
 </html>
