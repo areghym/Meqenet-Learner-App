@@ -14,8 +14,9 @@
                         'anqelba-primary': '#10B981', // Emerald Green
                         'anqelba-secondary': '#F59E0B', // Amber Yellow
                         'anqelba-dark': '#1F2937', // Dark Slate
-                        'anqelba-blue': '#3B82F6', // Blue for emotions
-                        'anqelba-coral': '#F9A8D4', // Pastel coral/pink
+                        'anqelba-blue': '#3B82F6', // Blue for emotions/Square
+                        'anqelba-coral': '#F9A8D4', // Pastel coral/pink / Shapes
+                        'anqelba-red': '#EF4444' // Red for Rectangle
                     },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
@@ -76,13 +77,14 @@
         const API_KEY = ""; // Gemini API Key
 
         const colors = {
-            primary: '#10B981', secondary: '#F59E0B', dark: '#1F2937', blue: '#3B82F6', coral: '#F9A8D4', white: '#FFFFFF'
+            primary: '#10B981', secondary: '#F59E0B', dark: '#1F2937', blue: '#3B82F6', coral: '#F9A8D4', red: '#EF4444', white: '#FFFFFF'
         };
 
         const lessons = [
             { id: 'alphabet', title: "Alphabet Match", icon: '📖', colorClass: "bg-anqelba-primary hover:border-anqelba-dark", description: "Match letters to pictures." },
             { id: 'counting', title: "Counting 1-10", icon: '🔢', colorClass: "bg-anqelba-secondary hover:border-anqelba-dark", description: "Practice numbers and quantity." },
             { id: 'emotions', title: "Basic Emotions", icon: '😃', colorClass: "bg-anqelba-blue hover:border-anqelba-dark", description: "Identify feelings and faces." },
+            { id: 'shapes', title: "Geometric Shapes", icon: '🔺', colorClass: "bg-anqelba-coral hover:border-anqelba-dark", description: "Learn common 2D shapes." }, // NEW LESSON
         ];
 
         const alphabets = [
@@ -100,10 +102,19 @@
         ];
 
         const countingItems = ['🍎', '🍌', '⭐', '⚽', '🚗', '🧸', '🦆', '🦋', '🎈', '🧁'];
+        
+        // NEW SHAPES DATA
+        const shapesData = [
+            { id: 'square', label: 'Square', definition: 'A shape with four equal sides and four square corners.', color: colors.blue },
+            { id: 'circle', label: 'Circle', definition: 'A perfectly round shape.', color: colors.primary },
+            { id: 'triangle', label: 'Triangle', definition: 'A shape with three straight sides and three corners.', color: colors.secondary },
+            { id: 'rectangle', label: 'Rectangle', definition: 'A shape with four sides where opposite sides are equal, and four square corners.', color: colors.red },
+        ];
+
 
         // --- STATE MANAGEMENT ---
         const state = {
-            view: 'roleSelection', // 'roleSelection', 'studentDashboard', 'alphabetMatch', 'emotionsMatch', 'countingGame', 'teacherDashboard'
+            view: 'roleSelection', // 'roleSelection', 'studentDashboard', 'alphabetMatch', 'emotionsMatch', 'countingGame', 'shapesMatch', 'teacherDashboard'
             currentRole: null,
             userId: null,
             progress: {},
@@ -142,6 +153,34 @@
             const path = svgMap[name] || '';
             return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${classes}"><g>${path}</g></svg>`;
         };
+
+        /** Generates a simple SVG shape. */
+        const getShapeSVG = (shapeId, size = 100, color = 'currentColor') => {
+            let path = '';
+            const half = size / 2;
+            const center = size / 2;
+
+            switch (shapeId) {
+                case 'square':
+                    path = `<rect x="10" y="10" width="${size - 20}" height="${size - 20}" rx="10" fill="${color}" stroke-width="4" stroke="white"/>`;
+                    break;
+                case 'circle':
+                    path = `<circle cx="${center}" cy="${center}" r="${half - 10}" fill="${color}" stroke-width="4" stroke="white"/>`;
+                    break;
+                case 'triangle':
+                    // Points for an equilateral triangle pointing up
+                    path = `<polygon points="${center},10 10,${size - 10} ${size - 10},${size - 10}" fill="${color}" stroke-width="4" stroke="white"/>`;
+                    break;
+                case 'rectangle':
+                    // Tall rectangle
+                    path = `<rect x="15" y="10" width="${size - 30}" height="${size - 20}" rx="10" fill="${color}" stroke-width="4" stroke="white"/>`;
+                    break;
+                default:
+                    path = '';
+            }
+            return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">${path}</svg>`;
+        };
+
 
         /** Converts Base64 string to ArrayBuffer. */
         const base64ToArrayBuffer = (base64) => {
@@ -515,7 +554,7 @@
                 } else {
                     handleMessage(`That's correct! ${target.letter} for ${target.word}! ⭐`, 'primary');
                     roleSpeak(`Yes! ${target.letter} is for ${target.word}. That's correct!`);
-                    setState({ currentGame: { score: newScore } });
+                    setState({ currentGame: { ...state.currentGame, score: newScore } });
                     setTimeout(initializeAlphabetMatch, 2000);
                 }
             } else {
@@ -592,7 +631,7 @@
                 } else {
                     handleMessage(`Fantastic! That is the ${target.label} face! ⭐`, 'primary');
                     roleSpeak(`Fantastic! That is the ${target.label} face.`);
-                    setState({ currentGame: { score: newScore } });
+                    setState({ currentGame: { ...state.currentGame, score: newScore } });
                     setTimeout(initializeEmotionsMatch, 2000);
                 }
             } else {
@@ -716,7 +755,7 @@
                         <p class="text-lg font-bold">Level: <span class="text-anqelba-primary">${level}</span></p>
                     </div>
 
-                    <div class="p-6 rounded-2xl mb-8 text-center shadow-lg bg-anqelba-secondary text-anqelba-dark">
+                    <div class="p-8 rounded-2xl mb-8 text-center shadow-lg bg-anqelba-secondary text-anqelba-dark">
                         <p class="text-xl font-bold mb-2">Count this many items:</p>
                         <div class="flex justify-center items-center">
                             <button data-speak="Count ${target.number} ${itemIcon}." class="tts-button mr-4 cursor-pointer hover:scale-110 transition">
@@ -780,6 +819,89 @@
             `;
         };
 
+        // --- Shapes Match Game Logic ---
+
+        const initializeShapesMatch = () => {
+            const target = shapesData[Math.floor(Math.random() * shapesData.length)];
+            // Select 3 other random options, making sure the target is included
+            const optionsPool = shapesData.filter(s => s.id !== target.id);
+            const shuffledOptions = [target, ...optionsPool.sort(() => Math.random() - 0.5).slice(0, 3)].sort(() => Math.random() - 0.5);
+
+            setState({
+                currentGame: {
+                    score: state.currentGame.score,
+                    target: target,
+                    options: shuffledOptions
+                }
+            });
+            roleSpeak(`What shape is a ${target.label}?`);
+        };
+
+        const checkShapesAnswer = (selectedId) => {
+            const { target, score } = state.currentGame;
+            if (selectedId === target.id) {
+                const newScore = score + 1;
+                if (newScore >= 5) {
+                    handleMessage('Lesson Complete! You earned 5 stars! 🎉', 'success');
+                    updateProgress('shapes', 5);
+                    roleSpeak(`You got it! This is a ${target.label}! Lesson complete! You earned five stars!`);
+                    setTimeout(() => setState({ view: 'studentDashboard', currentGame: { score: 0 } }), 4000);
+                } else {
+                    handleMessage(`That's right! It's a ${target.label}! ⭐`, 'primary');
+                    roleSpeak(`That's right! It's a ${target.label}! ${target.definition}`);
+                    setState({ currentGame: { ...state.currentGame, score: newScore } });
+                    setTimeout(initializeShapesMatch, 3000);
+                }
+            } else {
+                const selectedShape = shapesData.find(s => s.id === selectedId);
+                handleMessage(`Oops! That's a ${selectedShape.label}. Try finding the ${target.label}.`, 'error');
+                roleSpeak(`Not quite. Remember, a ${target.label} is ${target.definition}. Try again!`);
+            }
+        };
+
+        const renderShapesMatch = () => {
+            const { target, options, score } = state.currentGame;
+            if (!target) return '';
+
+            const optionsHTML = options.map((shape) => `
+                <button data-shape-id="${shape.id}" class="check-shapes-btn flex flex-col items-center p-4 rounded-2xl shadow-xl transition-transform transform hover:scale-[1.05] border-b-4 border-anqelba-dark/50 bg-white">
+                    <div class="w-24 h-24">
+                        ${getShapeSVG(shape.id, 96, shape.color)}
+                    </div>
+                    <span class="text-xl font-bold text-anqelba-dark mt-2">${shape.label}</span>
+                </button>
+            `).join('');
+
+            return `
+                <div class="main-content p-4 md:p-8 bg-white rounded-3xl">
+                    <h3 class="text-3xl font-black text-center text-anqelba-dark mb-4">Geometric Shapes Match</h3>
+
+                    <div class="flex justify-between items-center mb-6 p-4 bg-gray-100 rounded-xl">
+                        <p class="text-lg font-bold">Score: <span class="text-anqelba-secondary">${score} / 5</span></p>
+                        <button id="backToDashboard" class="text-anqelba-dark font-semibold hover:text-anqelba-primary transition duration-200">
+                            ${createIcon('ArrowLeft', 20, 'inline mr-2')} Back
+                        </button>
+                    </div>
+
+                    <div class="p-8 rounded-2xl mb-8 text-center shadow-lg bg-anqelba-coral/80 text-anqelba-dark">
+                        <p class="text-xl font-bold mb-2">Which shape is the:</p>
+                        <div class="flex justify-center items-center">
+                            <button data-speak="Which shape is the ${target.label}?" class="tts-button mr-4 cursor-pointer hover:scale-110 transition text-anqelba-dark">
+                                ${createIcon('Volume2', 32)}
+                            </button>
+                            <p class="text-5xl font-extrabold text-anqelba-dark">${target.label}</p>
+                        </div>
+                        <p class="text-sm mt-2 opacity-90">${target.definition}</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        ${optionsHTML}
+                    </div>
+                </div>
+            `;
+        };
+
+
         // --- RENDER AND EVENT ATTACHMENT ---
 
         const render = () => {
@@ -800,6 +922,7 @@
                 case 'alphabetMatch': contentHTML += renderAlphabetMatch(); break;
                 case 'emotionsMatch': contentHTML += renderEmotionsMatch(); break;
                 case 'countingGame': contentHTML += renderCountingGame(); break;
+                case 'shapesMatch': contentHTML += renderShapesMatch(); break; // NEW CASE
                 case 'teacherDashboard': contentHTML += renderTeacherDashboard(); break;
                 default: contentHTML += renderRoleSelection(); break;
             }
@@ -848,6 +971,9 @@
                     } else if (lessonId === 'counting') {
                         setState({ view: 'countingGame', currentGame: { score: 0 } });
                         initializeCountingGame(1);
+                    } else if (lessonId === 'shapes') { // NEW SHAPES LOGIC
+                        setState({ view: 'shapesMatch', currentGame: { score: 0 } });
+                        initializeShapesMatch();
                     } else {
                         handleMessage(`Lesson "${lesson.title}" is coming soon!`, 'info');
                         roleSpeak(`Lesson ${lesson.title} is coming soon!`);
@@ -869,6 +995,11 @@
             // --- Emotions Match Game Logic ---
             document.querySelectorAll('.check-emotions-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => checkEmotionsAnswer(e.currentTarget.dataset.emotionId));
+            });
+            
+            // --- Shapes Match Game Logic ---
+            document.querySelectorAll('.check-shapes-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => checkShapesAnswer(e.currentTarget.dataset.shapeId));
             });
 
             // --- Counting Game Logic ---
