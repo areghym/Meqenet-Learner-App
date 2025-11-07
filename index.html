@@ -3,1144 +3,906 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meqenet Learner App</title>
+    <title>Anqelba Inclusive Learning Platform</title>
+    <!-- Load Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Use Inter font family for a clean look -->
-    <style>
-        body { 
-            font-family: 'Inter', sans-serif; 
-            transition: background-color 0.3s, color 0.3s; 
-            /* Disable text selection for touch apps */
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-        }
-        /* Style for large, touch-friendly interactive elements */
-        .large-touch-target {
-            padding: 1rem;
-            border-radius: 0.75rem;
-            font-weight: bold;
-            transition: all 0.2s;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 4px 6px, 0.05);
-            cursor: pointer;
-        }
-        /* Card styling for content sections - will be dynamically styled for contrast */
-        .section-card {
-            padding: 1.5rem;
-            border-radius: 1rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 4px 6px, 0.05);
-        }
-        /* Highlight for the currently selected letter/number */
-        .current-item {
-            transform: scale(1.02);
-            transition: all 0.3s ease-in-out;
-        }
-        /* Style for input focus */
-        .input-style:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.5);
-        }
-        /* Mobile Navbar fixes */
-        @media (max-width: 767px) {
-            #nav-bar button {
-                padding-left: 0.5rem;
-                padding-right: 0.5rem;
-                font-size: 0.75rem; /* text-xs */
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'anqelba-primary': '#10B981', // Emerald Green
+                        'anqelba-secondary': '#F59E0B', // Amber Yellow
+                        'anqelba-dark': '#1F2937', // Dark Slate
+                        'anqelba-blue': '#3B82F6', // Blue for emotions
+                        'anqelba-coral': '#F9A8D4', // Pastel coral/pink
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
             }
         }
+    </script>
+    <style>
+        /* Import Inter font for a clean, modern look */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        /* Style for the main container to account for the fixed header */
+        .main-content {
+            padding-top: 4rem;
+        }
+        /* Custom grab cursor for drag-and-drop */
+        .draggable-item {
+            cursor: grab;
+            user-select: none;
+        }
     </style>
+</head>
+<body class="bg-gray-50 text-anqelba-dark">
+    <!-- Main application container -->
+    <div id="app" class="min-h-screen">
+        <!-- Content will be injected here by JS -->
+    </div>
+
+    <!-- Firebase SDK Imports (Module type required for ES module syntax) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, query, addDoc, deleteDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Expose Firebase functions and objects globally for use in the script below
-        window.firebase = {
-            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
-            getFirestore, doc, setDoc, onSnapshot, collection, query, addDoc, deleteDoc, setLogLevel
-        };
+        // Expose Firebase functions to the global scope for use in the main script
+        window.initializeApp = initializeApp;
+        window.getAuth = getAuth;
+        window.signInAnonymously = signInAnonymously;
+        window.signInWithCustomToken = signInWithCustomToken;
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.getFirestore = getFirestore;
+        window.doc = doc;
+        window.setDoc = setDoc;
+        window.onSnapshot = onSnapshot;
+        window.getDoc = getDoc;
     </script>
+
+    <!-- Main Application Logic -->
     <script>
-        // --- Global State and Initialization ---
-        // Global variables for Firebase access (MUST be defined)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-meqenet-learner';
+        // --- GLOBAL CONFIGURATION AND DATA ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
-        // App State
-        const appState = {
-            // Vocabulary is the default module
-            module: 'vocabulary', // literacy, numeracy, life_skills, vocabulary
-            language: 'english', // english, amharic
-            contrastMode: 'normal', // normal, high_contrast
-            textSize: 'medium', // small, medium, large
-            currentView: 'lesson', // lesson, quiz, management, settings
-            currentLiteracyIndex: 0,
-            currentNumeracyIndex: 0,
-            currentLifeSkillsIndex: 0,
-            currentVocabularyIndex: 0,
-            voiceName: '', // Stored voice name
-            voiceRate: 0.6,
-            voicePitch: 1.0,
-            learnerData: [] // Array to hold Firestore learner documents
+        const API_KEY = ""; // Gemini API Key
+
+        const colors = {
+            primary: '#10B981', secondary: '#F59E0B', dark: '#1F2937', blue: '#3B82F6', coral: '#F9A8D4', white: '#FFFFFF'
         };
 
-        // --- Content Definitions (Lessons and Quizzes) ---
-        // Array of letters A-Z for Literacy
-        const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
+        const lessons = [
+            { id: 'alphabet', title: "Alphabet Match", icon: '📖', colorClass: "bg-anqelba-primary hover:border-anqelba-dark", description: "Match letters to pictures." },
+            { id: 'counting', title: "Counting 1-10", icon: '🔢', colorClass: "bg-anqelba-secondary hover:border-anqelba-dark", description: "Practice numbers and quantity." },
+            { id: 'emotions', title: "Basic Emotions", icon: '😃', colorClass: "bg-anqelba-blue hover:border-anqelba-dark", description: "Identify feelings and faces." },
+        ];
 
-        // Array of numbers 1-100 for Numeracy
-        const NUMBERS = Array.from({ length: 100 }, (_, i) => i + 1);
+        const alphabets = [
+            { letter: 'A', sound: 'a', word: 'Apple', icon: '🍎' },
+            { letter: 'B', sound: 'b', word: 'Ball', icon: '⚽' },
+            { letter: 'C', sound: 'c', word: 'Cat', icon: '🐈' },
+            { letter: 'D', sound: 'd', word: 'Dog', icon: '🐕' },
+        ];
 
-        const CONTENT = {
-            literacy: {
-                title: { english: "Literacy: The Alphabet (A-Z)", amharic: "የአንብቦ መጻፍ ትምህርት: ፊደላት (ከA-Z)" },
-                items: ALPHABET.map((letter, index) => {
-                    // Simple example and quiz generation for all 26 letters
-                    const baseWord = getExampleWordForLetter(letter); // Helper function to provide a mock word
-                    return {
-                        value: letter, 
-                        example: { 
-                            english: `${baseWord.english} starts with ${letter}.`, 
-                            amharic: `${baseWord.amharic} በ${letter} ይጀምራል።` 
-                        },
-                        quiz: { 
-                            question: `Which word starts with ${letter}?`, 
-                            options: [
-                                { text: "Cat", correct: (letter === 'C') }, 
-                                { text: baseWord.english, correct: true }, 
-                                { text: "Dog", correct: (letter === 'D') }
-                            ].sort(() => Math.random() - 0.5) // Randomize options
-                        }
-                    };
-                })
-            },
-            numeracy: {
-                title: { english: "Numeracy: Numbers (1-100)", amharic: "የቁጥር ትምህርት: ቁጥሮች (ከ1-100)" },
-                // Dynamically generate 100 items for 1 through 100
-                items: NUMBERS.map(number => {
-                    const incorrect1 = (number === 1 ? number + 2 : number - 1).toString(); // Ensure option 1 is not 0
-                    const incorrect2 = (number + 1).toString();
-                    
-                    return {
-                        value: number.toString(), 
-                        example: { english: `This is the number ${number}.`, amharic: `ይህ ቁጥር ${number} ነው።` },
-                        quiz: { 
-                            question: `Which number is ${number}?`, 
-                            options: [
-                                { text: incorrect1, correct: false }, 
-                                { text: number.toString(), correct: true }, 
-                                { text: incorrect2, correct: false }
-                            ].sort(() => Math.random() - 0.5)
+        const emotionsData = [
+            { id: 'happy', label: 'Happy', icon: '😊', scenario: 'You got a new toy!' },
+            { id: 'sad', label: 'Sad', icon: '😢', scenario: 'It is raining outside and you can’t play.' },
+            { id: 'angry', label: 'Angry', icon: '😡', scenario: 'Someone took your block.' },
+            { id: 'surprised', label: 'Surprised', icon: '😮', scenario: 'You open the door and all your friends yell "Surprise!"' },
+        ];
+
+        const countingItems = ['🍎', '🍌', '⭐', '⚽', '🚗', '🧸', '🦆', '🦋', '🎈', '🧁'];
+
+        // --- STATE MANAGEMENT ---
+        const state = {
+            view: 'roleSelection', // 'roleSelection', 'studentDashboard', 'alphabetMatch', 'emotionsMatch', 'countingGame', 'teacherDashboard'
+            currentRole: null,
+            userId: null,
+            progress: {},
+            message: null,
+            messageType: 'info',
+            contrast: false,
+            fontSizeLevel: 1, // 1 (normal) or 2 (large)
+            currentGame: { score: 0, target: null, options: [], dropped: [] }
+        };
+
+        const setState = (newState) => {
+            Object.assign(state, newState);
+            render();
+        };
+
+        // --- FIREBASE GLOBALS ---
+        let app, db, auth;
+
+        // --- UTILITY FUNCTIONS ---
+
+        /** Generates a simple SVG icon string (adapted from Lucide for single-file HTML) */
+        const createIcon = (name, size = 20, classes = '') => {
+            const svgMap = {
+                Home: `<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>`,
+                Palette: `<path d="M12.22 17.5l-6.8-6.8a1 1 0 0 1 0-1.4l1.4-1.4a1 1 0 0 1 1.4 0l6.8 6.8"/><circle cx="12" cy="12" r="10"/><path d="M19 15l-1.5-1.5M15 19l-1.5-1.5"/>`,
+                User: `<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>`,
+                BookOpen: `<path d="M2 19.5c0 .3.2.5.5.5H19c.3 0 .5-.2.5-.5v-15c0-.3-.2-.5-.5-.5H2.5c-.3 0-.5.2-.5.5z"/><path d="M10 16L12 14 14 16"/><path d="M12 21.5V14"/>`,
+                Smile: `<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/>`,
+                SquareEqual: `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 10h10"/><path d="M7 14h10"/>`,
+                Lightbulb: `<path d="M15 14c.2-1 .5-2 1.3-2.7C17.5 10 18 9 18 8.5 18 6.5 14.5 4 12 4s-6 2.5-6 4.5c0 .5.5 1.5 1.7 2.8s1.5 1.7 1.3 2.7"/><line x1="12" x2="12" y1="18" y2="20"/><line x1="8" x2="8" y1="21" y2="22"/><line x1="16" x2="16" y1="21" y2="22"/>`,
+                CheckCircle: `<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M9 11l3 3L22 4"/>`,
+                Volume2: `<path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M17.08 6a8.49 8.49 0 0 1 0 12"/><path d="M19.07 3a10.49 10.49 0 0 1 0 18"/>`,
+                ArrowLeft: `<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>`,
+                ShoppingBasket: `<path d="m15 11-1 9"/><path d="m19 11-1 9"/><path d="m6 11 1 9"/><path d="m3 7 13.71 1.96 1.13 4.29-10.3 1.94-1.12-4.28z"/><path d="M12 10V3"/><path d="M7 10V3"/><path d="M17 10V3"/><path d="M22 7.72L20 6H4L2 7.72"/>`
+            };
+            const path = svgMap[name] || '';
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${classes}"><g>${path}</g></svg>`;
+        };
+
+        /** Converts Base64 string to ArrayBuffer. */
+        const base64ToArrayBuffer = (base64) => {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        };
+
+        /** Helper to write string to DataView. */
+        const writeString = (view, offset, string) => {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        };
+
+        /** Creates a WAV Blob from 16-bit signed PCM data. */
+        const pcmToWav = (pcmData, sampleRate) => {
+            const buffer = new ArrayBuffer(44 + pcmData.byteLength);
+            const view = new DataView(buffer);
+
+            // RIFF identifier 'RIFF'
+            writeString(view, 0, 'RIFF');
+            // file length
+            view.setUint32(4, 36 + pcmData.byteLength, true);
+            // RIFF type 'WAVE'
+            writeString(view, 8, 'WAVE');
+            // format chunk identifier 'fmt '
+            writeString(view, 12, 'fmt ');
+            // format chunk length
+            view.setUint32(16, 16, true);
+            // sample format (1 for PCM)
+            view.setUint16(20, 1, true);
+            // number of channels
+            view.setUint16(22, 1, true);
+            // sample rate
+            view.setUint32(24, sampleRate, true);
+            // byte rate (SampleRate * Channels * BitsPerSample / 8)
+            view.setUint32(28, sampleRate * 2, true);
+            // block align (Channels * BitsPerSample / 8)
+            view.setUint16(32, 2, true);
+            // bits per sample
+            view.setUint16(34, 16, true);
+            // data chunk identifier 'data'
+            writeString(view, 36, 'data');
+            // data chunk length
+            view.setUint32(40, pcmData.byteLength, true);
+
+            // Write PCM data
+            const pcmView = new Int16Array(buffer, 44);
+            for (let i = 0; i < pcmData.length; i++) {
+                pcmView[i] = pcmData[i];
+            }
+
+            return new Blob([view.buffer], { type: 'audio/wav' });
+        };
+
+        let currentAudio = null; // Global to manage single playback instance
+
+        /** TTS Function using Gemini API, with AbortError fix */
+        const speak = async (text, voice = "Kore") => {
+            if (!text || !db) return;
+
+            // Stop any currently playing audio
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
+            }
+
+            const payload = {
+                contents: [{
+                    parts: [{ text: text }]
+                }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: voice }
                         }
                     }
-                })
-            },
-            life_skills: {
-                title: { english: "Life Skills: Daily Routines", amharic: "የህይወት ክህሎቶች: የዕለት ተዕለት ተግባራት" },
-                items: [
-                    { value: 'Wake Up', example: { english: 'Start the day!', amharic: 'ቀኑን ይጀምሩ!' }, quiz: { question: 'When do you brush your teeth?', options: [{ text: 'Before bed', correct: true }, { text: 'Before waking up', correct: false }] } },
-                    { value: 'Eat Food', example: { english: 'Time to eat!', amharic: 'የመብላት ጊዜ!' }, quiz: { question: 'Why do we eat?', options: [{ text: 'For energy', correct: true }, { text: 'To sleep', correct: false }] } },
-                    { value: 'Play', example: { english: 'Have fun!', amharic: 'ይዝናኑ!' }, quiz: { question: 'Is playing good for learning?', options: [{ text: 'Yes', correct: true }, { text: 'No', correct: false }] } },
-                    { value: 'Wash Hands', example: { english: 'Use soap and water.', amharic: 'ሳሙናና ውሃ ተጠቀም።' }, quiz: { question: 'When should you wash your hands?', options: [{ text: 'After touching dirt', correct: true }, { text: 'Only when you bathe', correct: false }] } },
-                    { value: 'Help Others', example: { english: 'Sharing is caring!', amharic: 'መጋራት መተሳሰብ ነው።' }, quiz: { question: 'If a friend drops their book, what should you do?', options: [{ text: 'Ignore it', correct: false }, { text: 'Help them pick it up', correct: true }] } },
-                    { value: 'Safe Walking', example: { english: 'Look both ways before crossing.', amharic: 'መንገድ ከማቋረጥ በፊት ሁለቱንም ተመልከት።' }, quiz: { question: 'Which color light means STOP?', options: [{ text: 'Green', correct: false }, { text: 'Red', correct: true }] } },
-                ]
-            },
-            vocabulary: {
-                title: { english: "Vocabulary: Essential Words (100)", amharic: "ቃላት: አስፈላጊ ቃላት (100)" },
-                items: [
-                    { value: 'the', example: { english: 'The sun is hot.', amharic: 'ፀሐይ ትኩስ ነች።' }, quiz: { question: 'Spell the word TH...', options: [{ text: 'The', correct: true }, { text: 'To', correct: false }, { text: 'Tree', correct: false }] } },
-                    { value: 'is', example: { english: 'The dog is big.', amharic: 'ውሻው ትልቅ ነው።' }, quiz: { question: 'Which word means "existence"?', options: [{ text: 'It', correct: false }, { text: 'Is', correct: true }, { text: 'In', correct: false }] } },
-                    { value: 'and', example: { english: 'Mom and Dad.', amharic: 'እናትና አባት።' }, quiz: { question: 'What links two ideas?', options: [{ text: 'Or', correct: false }, { text: 'And', correct: true }, { text: 'But', correct: false }] } },
-                    { value: 'to', example: { english: 'Go to school.', amharic: 'ወደ ትምህርት ቤት ሂድ።' }, quiz: { question: 'Which word means direction?', options: [{ text: 'Two', correct: false }, { text: 'To', correct: true }, { text: 'Of', correct: false }] } },
-                    { value: 'a', example: { english: 'A red flower.', amharic: 'ቀይ አበባ።' }, quiz: { question: 'Which word is often used before a noun?', options: [{ text: 'I', correct: false }, { text: 'A', correct: true }, { text: 'He', correct: false }] } },
-                    // Placeholder items to reach 100 words in a real app
-                    ...Array.from({ length: 95 }, (_, i) => {
-                        const word = `word${i + 6}`;
-                        return { value: word, example: { english: `A very common word: ${word}.`, amharic: `አንድ የጋራ ቃል: ${word}።` }, quiz: { question: `Which is ${word}?`, options: [{ text: 'Test', correct: false }, { text: word, correct: true }, { text: 'Case', correct: false }] } };
-                    })
-                ]
-            }
-        };
-
-        // Simple helper function for mock English/Amharic words for A-Z
-        function getExampleWordForLetter(letter) {
-            const words = {
-                A: { english: 'Apple', amharic: 'አፕል' }, B: { english: 'Ball', amharic: 'ኳስ' }, C: { english: 'Cat', amharic: 'ድመት' }, 
-                D: { english: 'Dog', amharic: 'ውሻ' }, E: { english: 'Egg', amharic: 'እንቁላል' }, F: { english: 'Fish', amharic: 'ዓሳ' },
-                G: { english: 'Goat', amharic: 'ፍየል' }, H: { english: 'House', amharic: 'ቤት' }, I: { english: 'Ice', amharic: 'በረዶ' },
-                J: { english: 'Jar', amharic: 'ጆግ' }, K: { english: 'Key', amharic: 'ቁልፍ' }, L: { english: 'Lion', amharic: 'አንበሳ' },
-                M: { english: 'Map', amharic: 'ካርታ' }, N: { english: 'Nest', amharic: 'ጎጆ' }, O: { english: 'Owl', amharic: 'ጉጉት' },
-                P: { english: 'Pen', amharic: 'ብዕር' }, Q: { english: 'Queen', amharic: 'ንግሥት' }, R: { english: 'Rat', amharic: 'አይጥ' },
-                S: { english: 'Sun', amharic: 'ፀሐይ' }, T: { english: 'Tree', amharic: 'ዛፍ' }, U: { english: 'Umbrella', amharic: 'ጃንጥላ' },
-                V: { english: 'Vase', amharic: 'አበባ ማስቀመጫ' }, W: { english: 'Water', amharic: 'ውሃ' }, X: { english: 'Xylophone', amharic: 'ክሲሎፎን' },
-                Y: { english: 'Yacht', amharic: 'ጀልባ' }, Z: { english: 'Zebra', amharic: 'ሜዳ አህያ' }
+                },
+                model: "gemini-2.5-flash-preview-tts"
             };
-            return words[letter] || { english: 'Unknown', amharic: 'የማይታወቅ' };
-        }
 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${API_KEY}`;
 
-        const TEXT = {
-            nav: {
-                lesson: { english: 'Lesson', amharic: 'ትምህርት' },
-                quiz: { english: 'Quiz', amharic: 'ፈተና' },
-                management: { english: 'Learner Management', amharic: 'ተማሪ አስተዳደር' },
-                settings: { english: 'Settings', amharic: 'ቅንብሮች' },
-            },
-            literacy_module: { english: 'Literacy Module (A-Z)', amharic: 'የአንብቦ መጻፍ ሞዱል (A-Z)' },
-            numeracy_module: { english: 'Numeracy Module (1-100)', amharic: 'የቁጥር ሞዱል (1-100)' },
-            life_skills_module: { english: 'Life Skills Module', amharic: 'የህይወት ክህሎት ሞዱል' },
-            vocabulary_module: { english: 'Vocabulary Module (100 Words)', amharic: 'የቃላት ሞዱል (100 ቃላት)' },
-            next: { english: 'Next', amharic: 'ቀጥሎ' },
-            previous: { english: 'Previous', amharic: 'ቀደም ሲል' },
-            speak_word: { english: 'Speak Word', amharic: 'ቃሉን ተናገር' },
-            example: { english: 'Example Word:', amharic: 'ምሳሌ ቃል:' },
-            quiz_question: { english: 'Quiz Question:', amharic: 'የፈተና ጥያቄ:' },
-            correct: { english: '✅ Correct! Well done!', amharic: '✅ ትክክል! ጎበዝ!' },
-            incorrect: { english: '❌ Incorrect. Try again!', amharic: '❌ ስህተት። እንደገና ይሞክሩ!' },
-            register_learner: { english: 'Register New Learner', amharic: 'አዲስ ተማሪ አስመዝግብ' },
-            first_name: { english: 'First Name', amharic: 'ስም' },
-            last_name: { english: 'Last Name', amharic: 'የአባት ስም' },
-            grade: { english: 'Grade Level (1-8)', amharic: 'የክፍል ደረጃ (1-8)' },
-            learner_id: { english: 'Unique ID (Optional)', amharic: 'ልዩ መለያ (አማራጭ)' },
-            submit: { english: 'Register Learner', amharic: 'ተማሪን አስመዝግብ' },
-            current_learners: { english: 'Current Learners', amharic: 'አሁን ያሉ ተማሪዎች' },
-            voice_settings: { english: 'Voice Settings', amharic: 'የድምጽ ቅንብሮች' },
-            select_voice: { english: 'Select Voice', amharic: 'ድምጽ ምረጥ' },
-            rate: { english: 'Speed (Rate)', amharic: 'ፍጥነት (ደረጃ)' },
-            pitch: { english: 'Pitch', amharic: 'ድምጽ (ፒች)' },
-            accessibility: { english: 'Accessibility Settings', amharic: 'ተደራሽነት ቅንብሮች' },
-            contrast: { english: 'Contrast Mode', amharic: 'የንፅፅር ሁነታ' },
-            text_size: { english: 'Text Size', amharic: 'የጽሑፍ መጠን' },
-            normal: { english: 'Normal', amharic: 'መደበኛ' },
-            high_contrast: { english: 'High Contrast', amharic: 'ከፍተኛ ንፅፅር' },
-            small: { english: 'Small', amharic: 'ትንሽ' },
-            medium: { english: 'Medium', amharic: 'መካከለኛ' },
-            large: { english: 'Large', amharic: 'ትልቅ' },
-            delete: { english: 'Delete', amharic: 'አጥፋ' },
-            user_id: { english: 'Your Session ID:', amharic: 'የእርስዎ መለያ ቁጥር:' }
+            try {
+                let response;
+                let delay = 1000;
+                for (let i = 0; i < 3; i++) {
+                    response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) break;
+
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                    if (i === 2) throw new Error('API failed after multiple retries.');
+                }
+
+                const result = await response.json();
+                const part = result?.candidates?.[0]?.content?.parts?.[0];
+                const audioData = part?.inlineData?.data;
+                const mimeType = part?.inlineData?.mimeType;
+
+                if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
+                    const match = mimeType.match(/rate=(\d+)/);
+                    const sampleRate = match ? parseInt(match[1], 10) : 24000;
+
+                    const pcmData = base64ToArrayBuffer(audioData);
+                    const pcm16 = new Int16Array(pcmData);
+                    const wavBlob = pcmToWav(pcm16, sampleRate);
+
+                    const audioUrl = URL.createObjectURL(wavBlob);
+                    currentAudio = new Audio(audioUrl);
+
+                    // Crucial fix for AbortError
+                    currentAudio.play().catch(e => {
+                        if (e.name !== 'AbortError') {
+                            console.error("Audio Playback Error:", e);
+                        }
+                    });
+                } else {
+                    throw new Error("Invalid audio response structure or data.");
+                }
+            } catch (error) {
+                console.error("TTS Error:", error);
+            }
         };
 
-        // --- Firebase Setup ---
-        let db, auth;
-        let userId = null; 
-        let authReady = false;
-        let settingsLoaded = false;
-        let unsubscribeLearners = null;
-        let unsubscribeSettings = null;
-
-        // --- Internationalization (i18n) Helper ---
-        function t(key) {
-            return TEXT[key] ? (TEXT[key][appState.language] || TEXT[key]['english']) : key;
-        }
-
-        function getLessonContent() {
-            const moduleContent = CONTENT[appState.module];
-            if (!moduleContent) return null;
-
-            let index = 0;
-            if (appState.module === 'literacy') {
-                index = appState.currentLiteracyIndex;
-            } else if (appState.module === 'numeracy') {
-                index = appState.currentNumeracyIndex;
-            } else if (appState.module === 'life_skills') {
-                index = appState.currentLifeSkillsIndex || 0;
-            } else if (appState.module === 'vocabulary') {
-                index = appState.currentVocabularyIndex || 0;
+        const roleSpeak = (text) => {
+            if (state.currentRole === 'student') {
+                speak(text);
             }
-            return moduleContent.items[index];
-        }
+        };
 
-        // --- TTS and Voice Functions ---
-        let currentSynth;
-        let availableVoices = [];
+        // --- FIREBASE LOGIC ---
 
-        function initializeTTS() {
-            if (currentSynth) return;
-            currentSynth = window.speechSynthesis;
-            if (currentSynth) {
-                // Wait for voices to be loaded
-                currentSynth.onvoiceschanged = () => {
-                    availableVoices = currentSynth.getVoices();
-                    populateVoiceSelect();
-                };
-                // In case voices are already loaded
-                availableVoices = currentSynth.getVoices();
-                if (availableVoices.length > 0) {
-                    populateVoiceSelect();
-                }
-            } else {
-                console.error("Speech Synthesis not supported in this browser.");
+        const initializeFirebase = async () => {
+            if (typeof window.initializeApp === 'undefined') {
+                console.error("Firebase SDK not loaded.");
+                return;
             }
-        }
 
-        function populateVoiceSelect() {
-            const voiceSelect = document.getElementById('voice-select');
-            if (!voiceSelect) return;
+            try {
+                app = window.initializeApp(firebaseConfig);
+                db = window.getFirestore(app);
+                auth = window.getAuth(app);
+                console.log("Firebase initialized.");
 
-            // Clear existing options
-            voiceSelect.innerHTML = '';
-            
-            // Add an 'Auto' option
-            const defaultOption = document.createElement('option');
-            defaultOption.textContent = 'Auto (Browser Default)';
-            defaultOption.value = '';
-            voiceSelect.appendChild(defaultOption);
-
-            // Filter for English and Amharic voices if possible, otherwise use all.
-            const filteredVoices = availableVoices.filter(voice => 
-                voice.lang.startsWith('en-') || voice.lang.startsWith('am-') || voice.default
-            );
-
-            (filteredVoices.length > 0 ? filteredVoices : availableVoices).forEach(voice => {
-                const option = document.createElement('option');
-                option.textContent = `${voice.name} (${voice.lang})`;
-                option.value = voice.name;
-                
-                // Pre-select saved voice or a default
-                if (voice.name === appState.voiceName) {
-                    option.selected = true;
-                } else if (voice.default && !appState.voiceName) {
-                    appState.voiceName = voice.name;
-                    option.selected = true;
+                // Sign in logic
+                if (initialAuthToken) {
+                    await window.signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await window.signInAnonymously(auth);
                 }
-                voiceSelect.appendChild(option);
+
+                // Auth state listener
+                window.onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        setState({ userId: user.uid });
+                        setupProgressListener(user.uid);
+                    } else {
+                        setState({ userId: null });
+                    }
+                });
+            } catch (error) {
+                console.error("Firebase Initialization Error:", error);
+                handleMessage("Authentication failed. Data saving disabled.", 'error');
+            }
+        };
+
+        const setupProgressListener = (userId) => {
+            if (!db || !userId) return;
+
+            const progressRef = window.doc(db, `artifacts/${appId}/users/${userId}/progress`, 'lessons');
+
+            window.onSnapshot(progressRef, (docSnap) => {
+                const newProgress = docSnap.exists() ? (docSnap.data() || {}) : {};
+                setState({ progress: newProgress });
+            }, (error) => {
+                console.error("Firestore Progress Snapshot Error:", error);
             });
-        }
+        };
 
-        function speak(text) {
-            if (!currentSynth) {
-                console.error("TTS not ready.");
-                return;
-            }
-            
-            currentSynth.cancel(); 
-
-            const utterance = new SpeechSynthesisUtterance(text);
-            
-            // Apply settings from state
-            const voiceName = appState.voiceName;
-            if (voiceName) {
-                utterance.voice = availableVoices.find(voice => voice.name === voiceName) || null;
-            }
-
-            utterance.rate = appState.voiceRate;
-            utterance.pitch = appState.voicePitch;
-            
-            // Set language hint based on app language
-            if (appState.language === 'amharic') {
-                 // Hint Amharic language code, hoping the voice engine supports it
-                 utterance.lang = 'am-ET';
-            } else {
-                 utterance.lang = 'en-US';
-            }
-
-            currentSynth.speak(utterance);
-        }
-
-        // --- UI Rendering Functions ---
-        function getCardClasses(baseBg, baseBorder) {
-            if (appState.contrastMode === 'high_contrast') {
-                return `section-card bg-black border-4 border-yellow-300 text-yellow-300 shadow-yellow-700/50`;
-            } else {
-                return `section-card ${baseBg} ${baseBorder} text-gray-900`;
-            }
-        }
-
-        function getButtonClasses(baseBg, hoverBg, activeBg, text) {
-            if (appState.contrastMode === 'high_contrast') {
-                return `large-touch-target bg-black border-2 border-yellow-300 text-yellow-300 hover:bg-yellow-900 active:bg-yellow-800 shadow-none`;
-            } else {
-                return `large-touch-target ${baseBg} hover:${hoverBg} active:${activeBg} ${text} shadow-lg`;
-            }
-        }
-
-        function renderLessonView() {
-            const content = getLessonContent();
-            const lessonView = document.getElementById('lesson-view');
-            
-            if (!content) {
-                lessonView.innerHTML = `<p class="text-center text-xl text-gray-500">${t('normal')}</p>`;
+        const updateProgress = async (lessonId, newScore) => {
+            const currentUserId = state.userId;
+            if (!db || !currentUserId) {
+                handleMessage("Cannot save progress. User not authenticated or Firestore unavailable.", 'error');
                 return;
             }
 
-            let currentIndex = 0;
-            let totalItems = 0;
-            
-            // Determine current index and total items based on the active module
-            if (appState.module === 'literacy') {
-                currentIndex = appState.currentLiteracyIndex;
-                totalItems = CONTENT.literacy.items.length;
-            } else if (appState.module === 'numeracy') {
-                currentIndex = appState.currentNumeracyIndex;
-                totalItems = CONTENT.numeracy.items.length;
-            } else if (appState.module === 'life_skills') {
-                currentIndex = appState.currentLifeSkillsIndex || 0;
-                totalItems = CONTENT.life_skills.items.length;
-            } else if (appState.module === 'vocabulary') {
-                currentIndex = appState.currentVocabularyIndex || 0;
-                totalItems = CONTENT.vocabulary.items.length;
+            const progressRef = window.doc(db, `artifacts/${appId}/users/${currentUserId}/progress`, 'lessons');
+
+            try {
+                await window.setDoc(progressRef, { [lessonId]: newScore }, { merge: true });
+                console.log(`Progress for ${lessonId} updated.`);
+            } catch (error) {
+                console.error("Error updating progress:", error);
+                handleMessage("Failed to save progress.", 'error');
+            }
+        };
+
+        // --- UI UTILITIES ---
+
+        const handleMessage = (msg, type = 'info') => {
+            setState({ message: msg, messageType: type });
+            setTimeout(() => setState({ message: null }), 3000);
+        };
+
+        const renderMessageBox = () => {
+            const { message, messageType } = state;
+            if (!message) return '';
+
+            let bgColor, textColor, borderColor;
+            switch (messageType) {
+                case 'success': bgColor = 'bg-green-100'; borderColor = 'border-green-500'; textColor = 'text-green-700'; break;
+                case 'error': bgColor = 'bg-red-100'; borderColor = 'border-red-500'; textColor = 'text-red-700'; break;
+                case 'info': bgColor = 'bg-blue-100'; borderColor = 'border-blue-500'; textColor = 'text-blue-700'; break;
+                case 'primary':
+                default: bgColor = 'bg-anqelba-primary/20'; borderColor = 'border-anqelba-primary'; textColor = 'text-anqelba-dark';
             }
 
-            const currentTitle = CONTENT[appState.module].title[appState.language];
-            const currentItem = content.value;
-            const currentExample = content.example[appState.language];
-            
-            const mainCardClasses = getCardClasses('bg-white', 'border-4 border-indigo-500');
-            const speakButtonClasses = getButtonClasses('bg-green-500', 'bg-green-600', 'bg-green-700', 'text-white');
-            const prevButtonClasses = getButtonClasses('bg-gray-200', 'bg-gray-300', 'bg-gray-400', 'text-gray-800');
-            const nextButtonClasses = getButtonClasses('bg-indigo-500', 'bg-indigo-600', 'bg-indigo-700', 'text-white');
-
-            lessonView.innerHTML = `
-                <div class="${getCardClasses('bg-indigo-50', 'border border-indigo-200')} text-center mb-6">
-                    <h3 class="text-2xl md:text-3xl font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-700'} mb-2">${currentTitle}</h3>
-                    <p class="text-sm ${appState.contrastMode === 'high_contrast' ? 'text-yellow-500' : 'text-gray-600'}">${currentIndex + 1} / ${totalItems}</p>
-                </div>
-
-                <div class="text-center p-8 ${mainCardClasses} current-item">
-                    <div class="${appState.textSize === 'large' ? 'text-8xl' : appState.textSize === 'medium' ? 'text-7xl' : 'text-6xl'} font-extrabold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-900'} mb-6">${currentItem}</div>
-                    <p class="text-2xl font-semibold ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'} mb-6">${t('example')} <span class="font-extrabold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-800'}">${currentExample}</span></p>
-                    
-                    <button id="speak-button" class="${speakButtonClasses} w-full max-w-sm mx-auto flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 mr-3"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a4.99 4.99 0 0 1 0 7.07"></path></svg>
-                        ${t('speak_word')}
-                    </button>
-                </div>
-
-                <div class="flex justify-between mt-8">
-                    <button id="prev-button" class="${prevButtonClasses} flex-1 mr-4 ${currentIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''}" ${currentIndex === 0 ? 'disabled' : ''}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 mr-2"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                        ${t('previous')}
-                    </button>
-                    <button id="next-button" class="${nextButtonClasses} flex-1 ml-4 ${currentIndex === totalItems - 1 ? 'opacity-50 cursor-not-allowed' : ''}" ${currentIndex === totalItems - 1 ? 'disabled' : ''}>
-                        ${t('next')}
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 ml-2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                    </button>
+            return `
+                <div class="fixed bottom-4 left-1/2 transform -translate-x-1/2 p-4 rounded-xl shadow-2xl border-l-4 ${bgColor} ${borderColor} ${textColor} z-50 transition-opacity duration-300 max-w-sm md:max-w-md">
+                    <p class="font-semibold">${message}</p>
                 </div>
             `;
-            
-            // Attach event listeners
-            document.getElementById('speak-button').onclick = () => speak(currentItem + ' for ' + currentExample);
-            document.getElementById('prev-button').onclick = () => navigateLesson('prev');
-            document.getElementById('next-button').onclick = () => navigateLesson('next');
-        }
+        };
 
-        function renderQuizView() {
-            const content = getLessonContent();
-            const quizView = document.getElementById('quiz-view');
-            
-            if (!content || !content.quiz) {
-                quizView.innerHTML = `<p class="text-center text-xl ${appState.contrastMode === 'high_contrast' ? 'text-yellow-500' : 'text-gray-500'}">${t('normal')}</p>`;
-                return;
-            }
+        // --- VIEW RENDERERS ---
 
-            const question = content.quiz.question;
-            const options = content.quiz.options;
-            
-            const questionCardClasses = getCardClasses('bg-white', 'border-2 border-yellow-500');
+        const renderHeader = () => {
+            const isDashboard = state.view.includes('Dashboard');
+            const contrastClass = state.contrast ? 'bg-anqelba-dark/90' : 'bg-anqelba-primary';
+            const fontSizeClass = state.fontSizeLevel === 2 ? 'text-lg md:text-xl' : 'text-base md:text-lg';
 
-            quizView.innerHTML = `
-                <div class="${getCardClasses('bg-yellow-50', 'border border-yellow-200')} text-center mb-6">
-                    <h3 class="text-2xl md:text-3xl font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-yellow-700'}">${CONTENT[appState.module].title[appState.language]} Quiz</h3>
+            return `
+                <header class="fixed top-0 left-0 right-0 z-40 ${contrastClass} shadow-lg p-3 flex justify-between items-center ${fontSizeClass}">
+                    <div class="flex items-center space-x-2">
+                        ${createIcon('Palette', 28, 'text-white')}
+                        <h1 class="text-xl md:text-2xl font-black text-white">Anqelba</h1>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button id="toggleContrast" title="Toggle High Contrast" class="p-2 rounded-full bg-white/20 hover:bg-white/40 text-white transition">
+                            ${createIcon('Lightbulb', 20)}
+                        </button>
+                        <button id="toggleFontSize" title="Toggle Font Size" class="p-2 rounded-full bg-white/20 hover:bg-white/40 text-white transition">
+                            <span class="font-bold">${state.fontSizeLevel === 1 ? 'A+' : 'A++'}</span>
+                        </button>
+                        ${isDashboard ? `
+                            <button id="goHome" title="Go Home / Change Role" class="p-2 rounded-full bg-white/20 hover:bg-white/40 text-white transition">
+                                ${createIcon('Home', 20)}
+                            </button>
+                        ` : ''}
+                    </div>
+                </header>
+            `;
+        };
+
+        const renderRoleSelection = () => {
+            return `
+                <div class="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] p-6">
+                    <h2 class="text-4xl font-extrabold text-anqelba-dark mb-12 text-center">I am a...</h2>
+                    <div class="flex flex-col md:flex-row gap-8">
+                        <div id="select-student" class="flex flex-col items-center p-8 rounded-3xl shadow-xl hover:shadow-2xl transition-shadow cursor-pointer bg-anqelba-primary/90 text-white w-full md:w-60">
+                            ${createIcon('User', 64, 'mx-auto')}
+                            <h3 class="text-3xl font-bold mt-4">Student</h3>
+                            <p class="text-sm mt-2 text-center opacity-80">Interactive lessons</p>
+                        </div>
+                        <div id="select-teacher" class="flex flex-col items-center p-8 rounded-3xl shadow-xl hover:shadow-2xl transition-shadow cursor-pointer bg-anqelba-dark/90 text-white w-full md:w-60">
+                            ${createIcon('BookOpen', 64, 'mx-auto')}
+                            <h3 class="text-3xl font-bold mt-4">Teacher/Admin</h3>
+                            <p class="text-sm mt-2 text-center opacity-80">Progress tracking & settings</p>
+                        </div>
+                    </div>
                 </div>
+            `;
+        };
 
-                <div class="text-center p-8 ${questionCardClasses}">
-                    <p class="text-2xl md:text-3xl font-semibold ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'} mb-8">${t('quiz_question')} <span class="font-extrabold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-yellow-800'}">${question}</span></p>
-                    
-                    <div id="quiz-options" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <!-- Options will be added here by JS -->
+        const renderStudentDashboard = () => {
+            const totalStars = Object.values(state.progress).reduce((acc, curr) => acc + curr, 0);
+
+            const lessonCards = lessons.map(lesson => `
+                <div data-lesson-id="${lesson.id}" class="lesson-card p-6 rounded-3xl shadow-lg cursor-pointer transition-all duration-300 border-b-8 ${lesson.colorClass}">
+                    <div class="flex justify-between items-start text-white">
+                        <span class="text-4xl">${lesson.icon}</span>
+                        <div class="text-right">
+                            <span class="text-2xl font-bold">
+                                ${state.progress[lesson.id] || 0} / 5 ⭐
+                            </span>
+                        </div>
+                    </div>
+                    <h3 class="text-2xl font-extrabold mt-4 text-white">${lesson.title}</h3>
+                    <p class="text-sm mt-1 text-white opacity-80">${lesson.description}</p>
+                    ${(state.progress[lesson.id] || 0) >= 5 ? `<div class="mt-2 text-yellow-300">${createIcon('CheckCircle', 24, 'inline-block')}</div>` : ''}
+                </div>
+            `).join('');
+
+            return `
+                <div class="main-content p-4 md:p-8">
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-3xl font-black text-anqelba-dark">Let's Learn and Play!</h2>
+                        <button data-speak="Welcome back! Choose a lesson to start." class="tts-button text-anqelba-primary hover:scale-110 transition">
+                            ${createIcon('Volume2', 32, 'cursor-pointer')}
+                        </button>
                     </div>
 
-                    <div id="quiz-message" class="mt-8 text-center text-3xl font-bold"></div>
+                    <div class="bg-anqelba-blue/20 p-4 rounded-xl mb-8 shadow-inner">
+                        <p class="text-sm font-semibold text-anqelba-dark mb-2">Your ID: <span class="font-mono text-xs">${state.userId || 'Loading...'}</span></p>
+                        <p class="text-lg font-bold text-anqelba-dark">Total Stars: <span class="text-anqelba-secondary">${totalStars}</span> ⭐</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${lessonCards}
+                    </div>
                 </div>
             `;
-            
-            const optionsContainer = document.getElementById('quiz-options');
-            options.forEach(option => {
-                const button = document.createElement('button');
-                button.textContent = option.text;
-                let optionClasses = getButtonClasses('bg-indigo-100', 'bg-indigo-200', 'bg-indigo-300', 'text-indigo-800');
-                
-                if (appState.contrastMode === 'high_contrast') {
-                    optionClasses = optionClasses.replace('text-indigo-800', 'text-yellow-300');
-                }
-                
-                button.className = optionClasses;
-                button.onclick = () => handleQuizSelection(option.correct);
-                optionsContainer.appendChild(button);
-            });
-        }
+        };
 
-        function renderManagementView() {
-            const learnerListEl = document.getElementById('learner-list');
-            
-            // Clear the list first
-            learnerListEl.innerHTML = '';
-            
-            if (appState.learnerData.length === 0) {
-                learnerListEl.innerHTML = `
-                    <p class="text-center ${appState.contrastMode === 'high_contrast' ? 'text-yellow-500' : 'text-gray-500'} italic p-4">${authReady ? 'No learners registered yet.' : 'Loading learners...'}</p>
-                `;
-            } else {
-                appState.learnerData.forEach(learner => {
-                    const listItem = document.createElement('div');
-                    const deleteButtonClasses = appState.contrastMode === 'high_contrast' ? 
-                        'text-red-500 hover:text-red-300 large-touch-target p-2 bg-black border border-yellow-300 rounded-full transition-colors duration-150' :
-                        'text-red-500 hover:text-red-700 large-touch-target p-2 bg-white rounded-full transition-colors duration-150';
-
-                    listItem.className = `flex items-center justify-between p-4 mb-2 ${appState.contrastMode === 'high_contrast' ? 'bg-gray-900 border-yellow-300' : 'bg-gray-50 border-gray-200'} border rounded-lg shadow-sm`;
-                    
-                    listItem.innerHTML = `
-                        <div>
-                            <p class="text-lg font-semibold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-800'}">${learner.firstName} ${learner.lastName}</p>
-                            <p class="text-sm ${appState.contrastMode === 'high_contrast' ? 'text-yellow-500' : 'text-gray-600'}">Grade: ${learner.grade}</p>
-                            <p class="text-xs ${appState.contrastMode === 'high_contrast' ? 'text-gray-400' : 'text-gray-500'}">ID: <span class="font-mono ${appState.contrastMode === 'high_contrast' ? 'bg-gray-700' : 'bg-gray-200'} px-1 rounded">${learner.id}</span></p>
+        const renderTeacherDashboard = () => {
+            return `
+                <div class="main-content p-4 md:p-8">
+                    <h2 class="text-3xl font-black text-anqelba-dark mb-8">Teacher Dashboard (Text Only)</h2>
+                    <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-anqelba-dark">
+                        <p class="text-xl font-bold mb-4">Administration Tools & Progress Tracking</p>
+                        <p class="text-gray-700">This section is currently under development. Future features will include class progress reports, customizing lessons, and managing student accounts. The experience here is primarily visual and does not use voice prompts.</p>
+                        <div class="mt-6">
+                            <button id="teacherChangeRole" class="px-4 py-2 bg-anqelba-dark text-white rounded-full hover:bg-gray-700 transition">
+                                Change Role
+                            </button>
                         </div>
-                        <button onclick="window.deleteLearner('${learner.id}')" class="${deleteButtonClasses}">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-                            <span class="sr-only">${t('delete')}</span>
-                        </button>
-                    `;
-                    learnerListEl.appendChild(listItem);
-                });
-            }
-        }
+                    </div>
+                </div>
+            `;
+        };
 
-        // The settings view content is largely static HTML, but we will ensure form elements are populated.
-        function renderSettingsView() {
-            // Update the form controls based on appState
-            document.getElementById('module-select').value = appState.module;
-            document.getElementById('language-select').value = appState.language;
-            document.getElementById('contrast-select').value = appState.contrastMode;
-            document.getElementById('text-size-select').value = appState.textSize;
-            document.getElementById('voice-rate').value = appState.voiceRate;
-            document.getElementById('voice-pitch').value = appState.voicePitch;
-            
-            // Update rate/pitch display
-            document.getElementById('rate-display').textContent = appState.voiceRate.toFixed(1);
-            document.getElementById('pitch-display').textContent = appState.voicePitch.toFixed(1);
+        // --- GAME RENDERERS AND LOGIC ---
 
-            // Re-populate voice select to ensure saved voice is selected
-            populateVoiceSelect();
-        }
+        const initializeAlphabetMatch = () => {
+            const target = alphabets[Math.floor(Math.random() * alphabets.length)];
+            const otherLetters = alphabets.filter(a => a.letter !== target.letter).map(a => a.letter);
+            const shuffledOptions = [target.letter, ...otherLetters].slice(0, 3).sort(() => Math.random() - 0.5);
 
-        function renderAll() {
-            updateAllText();
-            applyTheme(appState.contrastMode); // Applies theme and re-renders current view
-            
-            // Also update the User ID display
-            document.getElementById('user-id-display').textContent = userId ? `${t('user_id')} ${userId}` : 'Authenticating...';
-        }
+            setState({
+                currentGame: {
+                    score: state.currentGame.score,
+                    target: target,
+                    options: shuffledOptions
+                }
+            });
+            roleSpeak(`Find the letter ${target.letter}.`);
+        };
 
-
-        // --- State/Navigation Logic ---
-
-        function changeView(newView) {
-            const views = ['lesson-view', 'quiz-view', 'management-view', 'settings-view'];
-            views.forEach(viewId => {
-                const view = document.getElementById(viewId);
-                if (viewId === `${newView}-view`) {
-                    view.classList.remove('hidden');
-                    appState.currentView = newView;
-                    // Re-render content specific to the new view
-                    if (newView === 'lesson') renderLessonView();
-                    if (newView === 'quiz') renderQuizView();
-                    if (newView === 'management') renderManagementView();
-                    if (newView === 'settings') renderSettingsView();
+        const checkAlphabetAnswer = (selectedLetter) => {
+            const { target, score } = state.currentGame;
+            if (selectedLetter === target.letter) {
+                const newScore = score + 1;
+                if (newScore >= 5) {
+                    handleMessage('Lesson Complete! You earned 5 stars! 🎉', 'success');
+                    updateProgress('alphabet', 5);
+                    roleSpeak(`Yes! ${target.letter} is for ${target.word}. Amazing! Lesson complete! You earned five stars!`);
+                    setTimeout(() => setState({ view: 'studentDashboard', currentGame: { score: 0 } }), 4000);
                 } else {
-                    view.classList.add('hidden');
+                    handleMessage(`That's correct! ${target.letter} for ${target.word}! ⭐`, 'primary');
+                    roleSpeak(`Yes! ${target.letter} is for ${target.word}. That's correct!`);
+                    setState({ currentGame: { score: newScore } });
+                    setTimeout(initializeAlphabetMatch, 2000);
                 }
-            });
-
-            // Update active state of nav buttons
-            const navButtons = document.querySelectorAll('#nav-bar button');
-            navButtons.forEach(button => {
-                const isSelected = button.dataset.view === newView;
-                button.classList.toggle('bg-indigo-500', isSelected);
-                button.classList.toggle('text-white', isSelected);
-                button.classList.toggle('shadow-md', isSelected);
-                
-                button.classList.toggle('bg-gray-100', !isSelected);
-                button.classList.toggle('text-gray-600', !isSelected);
-                button.classList.toggle('hover:bg-gray-200', !isSelected);
-
-                // High contrast overrides for nav
-                if (appState.contrastMode === 'high_contrast') {
-                    if (isSelected) {
-                        button.classList.remove('bg-indigo-500', 'text-white');
-                        button.classList.add('bg-yellow-300', 'text-black');
-                    } else {
-                        button.classList.remove('bg-gray-100', 'text-gray-600');
-                        button.classList.add('bg-black', 'text-yellow-300', 'border', 'border-yellow-300');
-                    }
-                }
-            });
-        }
-
-        function loadModule(moduleName) {
-            appState.module = moduleName;
-            
-            // Reset index based on module
-            if (moduleName === 'literacy') {
-                appState.currentLiteracyIndex = appState.currentLiteracyIndex || 0;
-            } else if (moduleName === 'numeracy') {
-                appState.currentNumeracyIndex = appState.currentNumeracyIndex || 0;
-            } else if (moduleName === 'life_skills') {
-                appState.currentLifeSkillsIndex = appState.currentLifeSkillsIndex || 0;
-            } else if (moduleName === 'vocabulary') {
-                appState.currentVocabularyIndex = appState.currentVocabularyIndex || 0;
-            }
-            saveSettings();
-            // Re-render the current view to show new module content
-            if (appState.currentView === 'lesson') renderLessonView();
-            if (appState.currentView === 'quiz') renderQuizView();
-        }
-
-        function setLanguage(lang) {
-            appState.language = lang;
-            saveSettings();
-            // Full re-render needed to update all text elements
-            renderAll();
-        }
-
-        function navigateLesson(direction) {
-            let currentIndexKey = `current${appState.module.charAt(0).toUpperCase() + appState.module.slice(1)}Index`;
-            
-            // Override for vocabulary module (since it's not simply 'currentVocabularyIndex')
-            if (appState.module === 'vocabulary') {
-                currentIndexKey = 'currentVocabularyIndex';
-            }
-            if (appState.module === 'life_skills') {
-                currentIndexKey = 'currentLifeSkillsIndex';
-            }
-
-            const totalItems = CONTENT[appState.module].items.length;
-            
-            if (direction === 'next' && appState[currentIndexKey] < totalItems - 1) {
-                appState[currentIndexKey]++;
-            } else if (direction === 'prev' && appState[currentIndexKey] > 0) {
-                appState[currentIndexKey]--;
-            }
-            saveSettings();
-            renderLessonView();
-        }
-
-        function handleQuizSelection(isCorrect) {
-            const quizMessage = document.getElementById('quiz-message');
-            // Disable options temporarily
-            document.querySelectorAll('#quiz-options button').forEach(btn => btn.disabled = true);
-            
-            if (isCorrect) {
-                showFeedback(t('correct'), 'success');
-                // Auto-advance to the next lesson item after correct answer
-                setTimeout(() => {
-                    // Check if we are at the end of the module
-                    let currentIndexKey = `current${appState.module.charAt(0).toUpperCase() + appState.module.slice(1)}Index`;
-                    if (appState.module === 'vocabulary' || appState.module === 'life_skills') {
-                         // These modules require manual key setting due to the name structure
-                         currentIndexKey = `current${appState.module.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('')}Index`;
-                    }
-                    
-                    const totalItems = CONTENT[appState.module].items.length;
-                    
-                    if (appState[currentIndexKey] < totalItems - 1) {
-                        navigateLesson('next');
-                        changeView('lesson'); // Go back to lesson view for the next item
-                    } else {
-                        // All items in the module completed (or quiz completed for the last item)
-                        showFeedback(`${t('correct')} Module Complete!`, 'success');
-                    }
-                    
-                    document.querySelectorAll('#quiz-options button').forEach(btn => btn.disabled = false);
-                }, 2000);
             } else {
-                showFeedback(t('incorrect'), 'error');
-                setTimeout(() => {
-                    quizMessage.textContent = '';
-                    document.querySelectorAll('#quiz-options button').forEach(btn => btn.disabled = false);
-                }, 1500);
+                handleMessage('Oops! Try finding the correct letter again.', 'error');
+                roleSpeak(`Not quite. Try finding the letter ${target.letter} again.`);
             }
-        }
+        };
 
-        function showFeedback(message, type) {
-            const quizMessage = document.getElementById('quiz-message');
-            quizMessage.textContent = message;
-            
-            let colorClass = 'text-blue-600';
-            if (type === 'success') {
-                colorClass = 'text-green-600';
-            } else if (type === 'error') {
-                colorClass = 'text-red-600';
-            }
-            
-            if (appState.contrastMode === 'high_contrast') {
-                // Use bright yellow for high contrast feedback
-                colorClass = 'text-yellow-300';
-            }
+        const renderAlphabetMatch = () => {
+            const { target, options, score } = state.currentGame;
+            if (!target) return '';
 
-            quizMessage.className = `mt-8 text-center text-3xl font-bold ${colorClass}`;
-        }
+            const optionsHTML = options.map((letter, index) => `
+                <button data-letter="${letter}" class="check-alphabet-btn p-6 md:p-10 rounded-2xl shadow-xl transition-transform transform hover:scale-[1.05] border-b-4 border-anqelba-dark/50 ${letter === target.letter ? 'bg-anqelba-secondary' : 'bg-anqelba-coral'}">
+                    <span class="text-5xl md:text-7xl font-black text-white">${letter}</span>
+                </button>
+            `).join('');
 
-        function applyTheme(mode) {
-            appState.contrastMode = mode;
-            saveSettings();
-            const body = document.getElementById('app-body');
-            
-            if (mode === 'high_contrast') {
-                body.className = 'bg-black text-yellow-300 min-h-screen transition-colors duration-300';
-            } else { // normal
-                body.className = 'bg-gray-50 text-gray-900 min-h-screen transition-colors duration-300';
-            }
-            
-            // Re-render all parts that depend on contrast
-            changeView(appState.currentView);
-        }
+            return `
+                <div class="main-content p-4 md:p-8 bg-white rounded-3xl">
+                    <h3 class="text-3xl font-black text-center text-anqelba-dark mb-4">Alphabet Match</h3>
 
-        function applyTextSize(size) {
-            appState.textSize = size;
-            saveSettings();
-            // The font size logic is handled directly in renderLessonView() now
-            if (appState.currentView === 'lesson') renderLessonView();
-        }
+                    <div class="flex justify-between items-center mb-6 p-4 bg-gray-100 rounded-xl">
+                        <p class="text-lg font-bold">Score: <span class="text-anqelba-secondary">${score} / 5</span></p>
+                        <button id="backToDashboard" class="text-anqelba-dark font-semibold hover:text-anqelba-primary transition duration-200">
+                            ${createIcon('ArrowLeft', 20, 'inline mr-2')} Back
+                        </button>
+                    </div>
 
-        function applyVoiceSettings() {
-            appState.voiceName = document.getElementById('voice-select').value;
-            appState.voiceRate = parseFloat(document.getElementById('voice-rate').value);
-            appState.voicePitch = parseFloat(document.getElementById('voice-pitch').value);
-            document.getElementById('rate-display').textContent = appState.voiceRate.toFixed(1);
-            document.getElementById('pitch-display').textContent = appState.voicePitch.toFixed(1);
-            saveSettings();
-        }
+                    <div class="p-8 rounded-2xl mb-8 text-center shadow-lg bg-anqelba-primary text-white">
+                        <p class="text-xl font-bold mb-2">Which letter matches this word?</p>
+                        <div class="flex justify-center items-center">
+                            <button data-speak="Find the letter for ${target.word}." class="tts-button mr-4 cursor-pointer hover:scale-110 transition text-yellow-300">
+                                ${createIcon('Volume2', 32)}
+                            </button>
+                            <p class="text-5xl font-extrabold">${target.icon}</p>
+                            <p class="text-5xl font-extrabold ml-4">${target.word}</p>
+                        </div>
+                    </div>
 
-        function updateAllText() {
-            // Update navigation text
-            document.getElementById('nav-lesson').textContent = t('nav').lesson;
-            document.getElementById('nav-quiz').textContent = t('nav').quiz;
-            document.getElementById('nav-management').textContent = t('nav').management;
-            document.getElementById('nav-settings').textContent = t('nav').settings;
+                    <div class="grid grid-cols-3 gap-6">
+                        ${optionsHTML}
+                    </div>
+                </div>
+            `;
+        };
 
-            // Update management labels
-            document.getElementById('register-title').textContent = t('register_learner');
-            document.getElementById('first-name-label').textContent = t('first_name');
-            document.getElementById('last-name-label').textContent = t('last_name');
-            document.getElementById('grade-label').textContent = t('grade');
-            document.getElementById('learner-id-label').textContent = t('learner_id');
-            document.getElementById('submit-learner').textContent = t('submit');
-            document.getElementById('current-learners-title').textContent = t('current_learners');
+        // --- Emotions Game Logic ---
 
-            // Update settings labels
-            document.getElementById('voice-settings-title').textContent = t('voice_settings');
-            document.getElementById('select-voice-label').textContent = t('select_voice');
-            document.getElementById('rate-label').textContent = t('rate');
-            document.getElementById('pitch-label').textContent = t('pitch');
-            document.getElementById('accessibility-title').textContent = t('accessibility');
-            document.getElementById('contrast-label').textContent = t('contrast');
-            document.getElementById('text-size-label').textContent = t('text_size');
-            
-            document.getElementById('module-literacy-label').textContent = t('literacy_module');
-            document.getElementById('module-numeracy-label').textContent = t('numeracy_module');
-            document.getElementById('module-life_skills-label').textContent = t('life_skills_module');
-            document.getElementById('module-vocabulary-label').textContent = t('vocabulary_module');
+        const initializeEmotionsMatch = () => {
+            const target = emotionsData[Math.floor(Math.random() * emotionsData.length)];
+            const otherEmotions = emotionsData.filter(e => e.id !== target.id).sort(() => Math.random() - 0.5);
+            const shuffledOptions = [target, ...otherEmotions].slice(0, 4).sort(() => Math.random() - 0.5);
 
-            document.querySelector('#contrast-select option[value="normal"]').textContent = t('normal');
-            document.querySelector('#contrast-select option[value="high_contrast"]').textContent = t('high_contrast');
-            document.querySelector('#text-size-select option[value="small"]').textContent = t('small');
-            document.querySelector('#text-size-select option[value="medium"]').textContent = t('medium');
-            document.querySelector('#text-size-select option[value="large"]').textContent = t('large');
-            
-            // Re-render navigation buttons to update colors based on contrast
-            changeView(appState.currentView);
-        }
-
-        // --- Firebase/Firestore Logic ---
-        
-        async function firebaseInit() {
-            if (!window.firebase) {
-                console.error("Firebase imports failed to load.");
-                return;
-            }
-
-            try {
-                const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, setLogLevel } = window.firebase;
-                
-                if (!firebaseConfig) {
-                    throw new Error("Firebase configuration is missing.");
+            setState({
+                currentGame: {
+                    score: state.currentGame.score,
+                    target: target,
+                    options: shuffledOptions
                 }
+            });
+            roleSpeak(`Which face is ${target.label}?`);
+        };
 
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                // setLogLevel('debug'); // Enable for debugging
-                
-                // 1. Initial Authentication
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
+        const checkEmotionsAnswer = (selectedId) => {
+            const { target, score } = state.currentGame;
+            if (selectedId === target.id) {
+                const newScore = score + 1;
+                if (newScore >= 5) {
+                    handleMessage('Lesson Complete! You earned 5 stars! 🎉', 'success');
+                    updateProgress('emotions', 5);
+                    roleSpeak(`Fantastic! That is the ${target.label} face. Amazing! Lesson complete! You earned five stars!`);
+                    setTimeout(() => setState({ view: 'studentDashboard', currentGame: { score: 0 } }), 4000);
                 } else {
-                    await signInAnonymously(auth);
+                    handleMessage(`Fantastic! That is the ${target.label} face! ⭐`, 'primary');
+                    roleSpeak(`Fantastic! That is the ${target.label} face.`);
+                    setState({ currentGame: { score: newScore } });
+                    setTimeout(initializeEmotionsMatch, 2000);
                 }
+            } else {
+                const selectedEmotion = emotionsData.find(e => e.id === selectedId);
+                handleMessage(`Oops! That's the ${selectedEmotion.label} face. Try again!`, 'error');
+                roleSpeak(`Oops! The ${selectedEmotion.label} face is when you feel ${selectedEmotion.scenario}. Try again.`);
+            }
+        };
 
-                // 2. Auth State Listener
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        authReady = true;
-                        console.log("Firebase Auth Ready. User ID:", userId);
-                        
-                        // Start listening to Learner Data and Settings
-                        setupSettingsListener();
-                        setupLearnerListener();
+        const renderEmotionsMatch = () => {
+            const { target, options, score } = state.currentGame;
+            if (!target) return '';
+
+            const optionsHTML = options.map((emotion) => `
+                <button data-emotion-id="${emotion.id}" class="check-emotions-btn flex flex-col items-center p-4 md:p-6 rounded-2xl shadow-xl transition-transform transform hover:scale-[1.05] border-b-4 border-anqelba-dark/50 bg-white">
+                    <span class="text-6xl md:text-8xl">${emotion.icon}</span>
+                    <span class="text-lg md:text-xl font-bold text-anqelba-dark mt-2">${emotion.label}</span>
+                </button>
+            `).join('');
+
+            return `
+                <div class="main-content p-4 md:p-8 bg-white rounded-3xl">
+                    <h3 class="text-3xl font-black text-center text-anqelba-dark mb-4">Basic Emotions Game</h3>
+
+                    <div class="flex justify-between items-center mb-6 p-4 bg-gray-100 rounded-xl">
+                        <p class="text-lg font-bold">Score: <span class="text-anqelba-secondary">${score} / 5</span></p>
+                        <button id="backToDashboard" class="text-anqelba-dark font-semibold hover:text-anqelba-primary transition duration-200">
+                            ${createIcon('ArrowLeft', 20, 'inline mr-2')} Back
+                        </button>
+                    </div>
+
+                    <div class="p-8 rounded-2xl mb-8 text-center shadow-lg bg-anqelba-blue text-white">
+                        <p class="text-xl font-bold mb-2">Which face shows:</p>
+                        <div class="flex justify-center items-center">
+                            <button data-speak="Which face shows ${target.label}?" class="tts-button mr-4 cursor-pointer hover:scale-110 transition text-yellow-300">
+                                ${createIcon('Volume2', 32)}
+                            </button>
+                            <p class="text-5xl font-extrabold">${target.label}</p>
+                        </div>
+                        <p class="text-lg mt-2 opacity-80">${target.scenario}</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        ${optionsHTML}
+                    </div>
+                </div>
+            `;
+        };
+
+
+        // --- Counting Game Logic ---
+
+        const initializeCountingGame = (level = 1) => {
+            const newTarget = Math.floor(Math.random() * (level > 2 ? 10 : 5)) + 1; // 1-5 for level 1-2, up to 10 after
+            const newItemIcon = countingItems[Math.floor(Math.random() * countingItems.length)];
+
+            setState({
+                currentGame: {
+                    score: state.currentGame.score,
+                    target: { number: newTarget, icon: newItemIcon },
+                    dropped: [],
+                    level: level
+                }
+            });
+            roleSpeak(`Level ${level}. Let's count ${newTarget} ${newItemIcon}. Drag ${newTarget} items to the basket.`);
+        };
+
+        const checkCountingAnswer = () => {
+            const { target, dropped, score, level } = state.currentGame;
+            if (dropped.length === target.number) {
+                // Success
+                const newScore = score + 1;
+                handleMessage('Great Job! One star earned! ⭐', 'primary');
+                roleSpeak(`Yes! That is ${target.number}! One star earned. Let's try the next one.`);
+
+                if (newScore >= 5) {
+                    handleMessage('Lesson Complete! You earned 5 stars! 🎉', 'success');
+                    updateProgress('counting', 5);
+                    setTimeout(() => setState({ view: 'studentDashboard', currentGame: { score: 0 } }), 4000);
+                } else {
+                    setState({ currentGame: { ...state.currentGame, score: newScore } });
+                    setTimeout(() => initializeCountingGame(level + 1), 2000);
+                }
+            } else {
+                // Failure
+                handleMessage(`Oops! That's ${dropped.length}. We need ${target.number}. Try again!`, 'error');
+                roleSpeak(`Oops! You put ${dropped.length} in the basket. We need ${target.number}. Let's try again.`);
+                setState({ currentGame: { ...state.currentGame, dropped: [] } }); // Reset the basket
+            }
+        };
+
+        const resetBasket = () => {
+            setState({ currentGame: { ...state.currentGame, dropped: [] } });
+            roleSpeak("Basket is empty. Let's start counting again.");
+        };
+
+        const handleDrop = (e) => {
+            e.preventDefault();
+            const draggedItem = e.dataTransfer.getData("item");
+            const { icon } = state.currentGame.target;
+            if (draggedItem === icon) {
+                setState({ currentGame: { ...state.currentGame, dropped: [...state.currentGame.dropped, draggedItem] } });
+            }
+        };
+
+        const renderCountingGame = () => {
+            const { target, dropped, score, level } = state.currentGame;
+            if (!target) return '';
+
+            const targetClass = 'border-dashed border-4 border-anqelba-blue bg-anqelba-blue/20'; // Always show drop target
+            const itemIcon = target.icon;
+
+            const droppedItemsHTML = dropped.map((item, index) => `<span class="text-4xl">${item}</span>`).join('');
+
+            return `
+                <div class="main-content p-4 md:p-8 bg-white rounded-3xl">
+                    <h3 class="text-3xl font-black text-center text-anqelba-dark mb-4">Counting ${target.number}</h3>
+
+                    <div class="flex justify-between items-center mb-6 p-4 bg-gray-100 rounded-xl">
+                        <p class="text-lg font-bold">Score: <span class="text-anqelba-secondary">${score} / 5</span></p>
+                        <p class="text-lg font-bold">Level: <span class="text-anqelba-primary">${level}</span></p>
+                    </div>
+
+                    <div class="p-6 rounded-2xl mb-8 text-center shadow-lg bg-anqelba-secondary text-anqelba-dark">
+                        <p class="text-xl font-bold mb-2">Count this many items:</p>
+                        <div class="flex justify-center items-center">
+                            <button data-speak="Count ${target.number} ${itemIcon}." class="tts-button mr-4 cursor-pointer hover:scale-110 transition">
+                                ${createIcon('Volume2', 32)}
+                            </button>
+                            <p class="text-7xl font-extrabold">${target.number}</p>
+                            <span class="text-7xl font-extrabold ml-4">${itemIcon}</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                        <!-- Draggable Item Source -->
+                        <div class="flex flex-col items-center p-4 bg-white rounded-xl shadow-md">
+                             <p class="text-lg font-bold mb-4 text-anqelba-dark">Drag items from here...</p>
+                            <div
+                                draggable="true"
+                                data-item="${itemIcon}"
+                                id="draggableSource"
+                                class="draggable-item p-6 rounded-xl shadow-lg cursor-grab text-center transform transition-transform hover:scale-[1.05] bg-anqelba-coral"
+                            >
+                                <span class="text-7xl">${itemIcon}</span>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-3">(Tap and hold or drag this item)</p>
+                        </div>
+
+                        <!-- Target Area (Drop Zone) -->
+                        <div
+                            id="dropZone"
+                            class="p-6 rounded-2xl transition-all duration-300 shadow-inner min-h-[200px] ${targetClass}"
+                            ondragover="event.preventDefault();"
+                            ondrop="handleDrop(event);"
+                        >
+                            <div class="flex justify-between items-center mb-4">
+                                <p class="text-lg font-bold text-anqelba-dark">...into the basket!</p>
+                                ${createIcon('ShoppingBasket', 32, 'text-anqelba-dark')}
+                            </div>
+
+                            <div class="flex flex-wrap gap-2 p-2 bg-white rounded-lg min-h-[100px] items-center">
+                                ${droppedItemsHTML}
+                            </div>
+                            <p class="text-center text-anqelba-dark font-bold text-2xl mt-4">Total: ${dropped.length}</p>
+                        </div>
+                    </div>
+
+                    <!-- Control Buttons -->
+                    <div class="flex flex-col sm:flex-row justify-center gap-4 mt-8">
+                        <button id="resetBasket" class="px-6 py-3 bg-red-500 text-white font-semibold rounded-full shadow-md hover:bg-red-600 transition duration-200">
+                            Empty Basket
+                        </button>
+                        <button id="checkCountingAnswer" class="px-8 py-4 bg-green-500 text-white font-extrabold text-lg rounded-full shadow-lg hover:bg-green-600 transition duration-200 transform hover:scale-[1.02]">
+                            Check My Answer!
+                        </button>
+                    </div>
+
+                    <div class="mt-8 text-center">
+                         <button id="backToDashboard" class="px-6 py-3 bg-gray-300 text-anqelba-dark font-semibold rounded-full shadow-md hover:bg-gray-400 transition duration-200">
+                            ${createIcon('ArrowLeft', 20, 'inline mr-2')} Back to Lessons
+                        </button>
+                    </div>
+                </div>
+            `;
+        };
+
+        // --- RENDER AND EVENT ATTACHMENT ---
+
+        const render = () => {
+            const appDiv = document.getElementById('app');
+            const { view, contrast, fontSizeLevel } = state;
+
+            // Apply global classes
+            const contrastClasses = contrast ? 'bg-black text-white' : 'bg-gray-50 text-anqelba-dark';
+            const fontSizeClasses = fontSizeLevel === 2 ? 'text-lg md:text-xl' : 'text-base md:text-lg';
+            appDiv.className = `min-h-screen ${contrastClasses} ${fontSizeClasses}`;
+
+            let contentHTML = renderHeader();
+            contentHTML += '<main class="container mx-auto p-2 md:p-4 main-content">';
+
+            switch (view) {
+                case 'roleSelection': contentHTML += renderRoleSelection(); break;
+                case 'studentDashboard': contentHTML += renderStudentDashboard(); break;
+                case 'alphabetMatch': contentHTML += renderAlphabetMatch(); break;
+                case 'emotionsMatch': contentHTML += renderEmotionsMatch(); break;
+                case 'countingGame': contentHTML += renderCountingGame(); break;
+                case 'teacherDashboard': contentHTML += renderTeacherDashboard(); break;
+                default: contentHTML += renderRoleSelection(); break;
+            }
+
+            contentHTML += '</main>';
+            contentHTML += renderMessageBox();
+
+            appDiv.innerHTML = contentHTML;
+            attachEventListeners();
+        };
+
+        const attachEventListeners = () => {
+            // --- Global Controls ---
+            document.getElementById('toggleContrast')?.addEventListener('click', () => setState({ contrast: !state.contrast }));
+            document.getElementById('toggleFontSize')?.addEventListener('click', () => setState({ fontSizeLevel: state.fontSizeLevel === 1 ? 2 : 1 }));
+            document.getElementById('goHome')?.addEventListener('click', () => { setState({ view: 'roleSelection', currentRole: null }); });
+
+            // --- TTS Buttons ---
+            document.querySelectorAll('.tts-button').forEach(btn => {
+                btn.addEventListener('click', () => roleSpeak(btn.dataset.speak));
+            });
+
+            // --- Role Selection ---
+            document.getElementById('select-student')?.addEventListener('click', () => {
+                setState({ currentRole: 'student', view: 'studentDashboard' });
+                roleSpeak(`Welcome to Anqelba! Let's learn and play.`);
+            });
+            document.getElementById('select-teacher')?.addEventListener('click', () => {
+                setState({ currentRole: 'teacher', view: 'teacherDashboard' });
+                handleMessage(`Welcome, Teacher. You are now in the administrative dashboard.`, 'info');
+            });
+            document.getElementById('teacherChangeRole')?.addEventListener('click', () => { setState({ view: 'roleSelection', currentRole: null }); });
+
+            // --- Dashboard ---
+            document.querySelectorAll('.lesson-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    const lessonId = e.currentTarget.dataset.lessonId;
+                    const lesson = lessons.find(l => l.id === lessonId);
+
+                    if (lessonId === 'alphabet') {
+                        setState({ view: 'alphabetMatch', currentGame: { score: 0 } });
+                        initializeAlphabetMatch();
+                    } else if (lessonId === 'emotions') {
+                        setState({ view: 'emotionsMatch', currentGame: { score: 0 } });
+                        initializeEmotionsMatch();
+                    } else if (lessonId === 'counting') {
+                        setState({ view: 'countingGame', currentGame: { score: 0 } });
+                        initializeCountingGame(1);
                     } else {
-                        console.log("No user signed in (using anonymous fallback).");
+                        handleMessage(`Lesson "${lesson.title}" is coming soon!`, 'info');
+                        roleSpeak(`Lesson ${lesson.title} is coming soon!`);
                     }
                 });
-
-            } catch (error) {
-                console.error("FIREBASE INIT ERROR:", error);
-                document.getElementById('learner-form-message').textContent = "Database Offline: Management features disabled.";
-            }
-        }
-
-        function getLearnersCollectionPath() {
-            // Private Data Path: /artifacts/{appId}/users/{userId}/learners
-            return `artifacts/${appId}/users/${userId}/learners`;
-        }
-        
-        function getSettingsDocPath() {
-            // Private Settings Document Path: /artifacts/{appId}/users/{userId}/settings/prefs
-            return `artifacts/${appId}/users/${userId}/settings/prefs`;
-        }
-
-        function setupLearnerListener() {
-            if (!db || !userId) return;
-            const { collection, query, onSnapshot } = window.firebase;
-
-            // Clear previous listener if it exists
-            if (unsubscribeLearners) {
-                unsubscribeLearners();
-            }
-
-            const learnerColRef = collection(db, getLearnersCollectionPath());
-            const q = query(learnerColRef);
-
-            unsubscribeLearners = onSnapshot(q, (snapshot) => {
-                const learners = [];
-                snapshot.forEach((doc) => {
-                    learners.push({ id: doc.id, ...doc.data() });
-                });
-                appState.learnerData = learners;
-                console.log("Learners updated:", appState.learnerData.length);
-                if (appState.currentView === 'management') {
-                    renderManagementView();
-                }
-            }, (error) => {
-                console.error("Learner Listener Error:", error);
             });
-        }
-        
-        function setupSettingsListener() {
-            if (!db || !userId) return;
-            const { doc, onSnapshot } = window.firebase;
 
-            // Clear previous listener if it exists
-            if (unsubscribeSettings) {
-                unsubscribeSettings();
-            }
-
-            const settingsDocRef = doc(db, getSettingsDocPath());
-
-            unsubscribeSettings = onSnapshot(settingsDocRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const savedSettings = docSnap.data();
-                    
-                    // Apply saved settings to appState
-                    appState.module = savedSettings.module || appState.module;
-                    appState.language = savedSettings.language || appState.language;
-                    appState.contrastMode = savedSettings.contrastMode || appState.contrastMode;
-                    appState.textSize = savedSettings.textSize || appState.textSize;
-                    appState.currentLiteracyIndex = savedSettings.currentLiteracyIndex || 0;
-                    appState.currentNumeracyIndex = savedSettings.currentNumeracyIndex || 0;
-                    appState.currentLifeSkillsIndex = savedSettings.currentLifeSkillsIndex || 0;
-                    appState.currentVocabularyIndex = savedSettings.currentVocabularyIndex || 0;
-                    
-                    appState.voiceName = savedSettings.voiceName || appState.voiceName;
-                    appState.voiceRate = savedSettings.voiceRate || appState.voiceRate;
-                    appState.voicePitch = savedSettings.voicePitch || appState.voicePitch;
-
-                    console.log("Settings loaded/updated from Firestore.");
-                } else {
-                    console.log("No user settings found. Using defaults.");
-                    // Save current defaults if none exist
-                    saveSettings(true); 
-                }
-                
-                if (!settingsLoaded) {
-                    renderAll();
-                    settingsLoaded = true;
-                }
-                
-            }, (error) => {
-                console.error("Settings Listener Error:", error);
+            // --- Back Button (in Games) ---
+            document.getElementById('backToDashboard')?.addEventListener('click', () => {
+                setState({ view: 'studentDashboard', currentGame: { score: 0 } });
             });
-        }
-        
-        // Function to save current state settings to Firestore
-        async function saveSettings(force = false) {
-            if (!db || !userId) {
-                console.warn("Cannot save settings: Firebase or User ID not ready.");
-                return;
+
+
+            // --- Alphabet Match Game Logic ---
+            document.querySelectorAll('.check-alphabet-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => checkAlphabetAnswer(e.currentTarget.dataset.letter));
+            });
+
+            // --- Emotions Match Game Logic ---
+            document.querySelectorAll('.check-emotions-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => checkEmotionsAnswer(e.currentTarget.dataset.emotionId));
+            });
+
+            // --- Counting Game Logic ---
+            document.getElementById('resetBasket')?.addEventListener('click', resetBasket);
+            document.getElementById('checkCountingAnswer')?.addEventListener('click', checkCountingAnswer);
+
+            // Drag and Drop (Source)
+            document.getElementById('draggableSource')?.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData("item", e.currentTarget.dataset.item);
+                roleSpeak(`Picked up one ${e.currentTarget.dataset.item}`);
+            });
+            document.getElementById('draggableSource')?.addEventListener('touchstart', (e) => {
+                // Prevent scrolling to allow for touch drag
+                e.preventDefault();
+                // Simple touch implementation: drop on tap (no complex touch-move drag)
+                const item = e.currentTarget.dataset.item;
+                setState({ currentGame: { ...state.currentGame, dropped: [...state.currentGame.dropped, item] } });
+                roleSpeak(`Dropped one ${item}`);
+            });
+        };
+
+        // Expose global function for the ondrop attribute in Counting Game
+        window.handleDrop = handleDrop;
+
+
+        // --- APPLICATION STARTUP ---
+        window.onload = () => {
+            if (firebaseConfig) {
+                initializeFirebase();
+            } else {
+                console.log("Running in offline/demo mode.");
+                render();
             }
-            if (!settingsLoaded && !force) return;
-            
-            const { doc, setDoc } = window.firebase;
-            const settingsDocRef = doc(db, getSettingsDocPath());
-            
-            const settingsToSave = {
-                module: appState.module,
-                language: appState.language,
-                contrastMode: appState.contrastMode,
-                textSize: appState.textSize,
-                currentLiteracyIndex: appState.currentLiteracyIndex,
-                currentNumeracyIndex: appState.currentNumeracyIndex,
-                currentLifeSkillsIndex: appState.currentLifeSkillsIndex,
-                currentVocabularyIndex: appState.currentVocabularyIndex,
-                voiceName: appState.voiceName,
-                voiceRate: appState.voiceRate,
-                voicePitch: appState.voicePitch,
-                lastUpdated: new Date().toISOString()
-            };
-            
-            try {
-                await setDoc(settingsDocRef, settingsToSave, { merge: true });
-                // console.log("Settings saved successfully.");
-            } catch (e) {
-                console.error("Error saving settings: ", e);
-            }
-        }
-
-
-        // Globalize these functions for use in inline HTML handlers
-        window.deleteLearner = async function(docId) {
-            if (!db || !userId) {
-                console.error("Cannot delete learner: Firebase not ready.");
-                return;
-            }
-            const { doc, deleteDoc } = window.firebase;
-            
-            // NOTE: Replacing native confirm with a placeholder text message since native alerts/confirms are forbidden
-            const message = document.getElementById('learner-form-message');
-            message.textContent = "Please confirm deletion via custom modal (not implemented in this mock). Deleting now...";
-            setTimeout(() => message.textContent = '', 2000);
-            
-            const learnerDocRef = doc(db, getLearnersCollectionPath(), docId);
-            try {
-                await deleteDoc(learnerDocRef);
-                console.log("Learner successfully deleted!");
-            } catch (e) {
-                console.error("Error deleting learner: ", e);
-            }
-        }
-
-        window.registerLearner = async function(event) {
-            event.preventDefault(); // Prevent default form submission
-            if (!db || !userId) {
-                document.getElementById('learner-form-message').textContent = "Error: Database not ready.";
-                return;
-            }
-
-            const { collection, addDoc } = window.firebase;
-            
-            const form = event.target;
-            const firstName = form.firstName.value.trim();
-            const lastName = form.lastName.value.trim();
-            const grade = parseInt(form.grade.value, 10);
-            const customId = form.customId.value.trim();
-
-            if (!firstName || !lastName || isNaN(grade) || grade < 1 || grade > 8) {
-                document.getElementById('learner-form-message').textContent = "Please fill in all required fields correctly (Grade 1-8).";
-                return;
-            }
-
-            const newLearner = {
-                firstName: firstName,
-                lastName: lastName,
-                grade: grade,
-                customId: customId,
-                registeredAt: new Date().toISOString()
-            };
-
-            try {
-                const docRef = await addDoc(collection(db, getLearnersCollectionPath()), newLearner);
-                console.log("Learner registered with ID: ", docRef.id);
-                document.getElementById('learner-form-message').textContent = `${firstName} registered successfully!`;
-                form.reset(); // Clear form on success
-                setTimeout(() => document.getElementById('learner-form-message').textContent = '', 3000);
-            } catch (e) {
-                console.error("Error adding document: ", e);
-                document.getElementById('learner-form-message').textContent = "Registration failed. See console for details.";
-            }
-        }
-        
-        window.loadModule = loadModule;
-        window.setLanguage = setLanguage;
-        window.applyTheme = applyTheme;
-        window.applyTextSize = applyTextSize;
-        window.applyVoiceSettings = applyVoiceSettings;
-        window.changeView = changeView;
-
-
-        // --- Initialization on Window Load ---
-        window.onload = function() {
-            // Start Firebase and Authentication process
-            firebaseInit();
-            // Initialize TTS
-            initializeTTS();
-            
-            // Initial render before settings are loaded (uses defaults)
-            renderAll();
-            // Start in lesson view of the default module (Vocabulary)
-            changeView('lesson');
         };
     </script>
-</head>
-<body id="app-body" class="bg-gray-50 text-gray-900 min-h-screen">
-    <div class="max-w-4xl mx-auto p-4 md:p-8">
-
-        <!-- Header and User ID Display -->
-        <header class="mb-6 pb-4 border-b-2 border-indigo-200">
-            <h1 class="text-4xl font-extrabold text-indigo-700 mb-2">Meqenet Learning Platform</h1>
-            <p id="user-id-display" class="text-xs text-gray-500 font-mono break-words"></p>
-        </header>
-
-        <!-- Main Navigation (Mobile-friendly fixed at top on small screens) -->
-        <nav id="nav-bar" class="flex justify-around bg-white p-2 rounded-xl shadow-lg mb-8 sticky top-0 z-10 space-x-2">
-            <button data-view="lesson" id="nav-lesson" onclick="changeView('lesson')" class="flex-1 large-touch-target bg-indigo-500 text-white shadow-md">Lesson</button>
-            <button data-view="quiz" id="nav-quiz" onclick="changeView('quiz')" class="flex-1 large-touch-target bg-gray-100 text-gray-600 hover:bg-gray-200">Quiz</button>
-            <button data-view="management" id="nav-management" onclick="changeView('management')" class="flex-1 large-touch-target bg-gray-100 text-gray-600 hover:bg-gray-200">Learner Management</button>
-            <button data-view="settings" id="nav-settings" onclick="changeView('settings')" class="flex-1 large-touch-target bg-gray-100 text-gray-600 hover:bg-gray-200">Settings</button>
-        </nav>
-
-        <!-- Main Content Area -->
-        <main>
-            <!-- Lesson View (Default) -->
-            <section id="lesson-view" class="space-y-6">
-                <!-- Content injected by renderLessonView() -->
-            </section>
-
-            <!-- Quiz View -->
-            <section id="quiz-view" class="hidden space-y-6">
-                <!-- Content injected by renderQuizView() -->
-            </section>
-
-            <!-- Learner Management View -->
-            <section id="management-view" class="hidden space-y-8">
-                
-                <!-- Registration Form -->
-                <div class="${getCardClasses('bg-white', 'border border-gray-200')}">
-                    <h2 id="register-title" class="text-xl font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-600'} mb-4">Register New Learner</h2>
-                    <form onsubmit="window.registerLearner(event)">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label id="first-name-label" for="firstName" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">First Name</label>
-                                <input type="text" id="firstName" name="firstName" required class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
-                            </div>
-                            <div>
-                                <label id="last-name-label" for="lastName" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Last Name</label>
-                                <input type="text" id="lastName" name="lastName" required class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
-                            </div>
-                            <div>
-                                <label id="grade-label" for="grade" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Grade Level (1-8)</label>
-                                <input type="number" id="grade" name="grade" min="1" max="8" required class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
-                            </div>
-                            <div>
-                                <label id="learner-id-label" for="customId" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Unique ID (Optional)</label>
-                                <input type="text" id="customId" name="customId" class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
-                            </div>
-                        </div>
-                        <p id="learner-form-message" class="text-sm text-center text-green-600 font-semibold mb-3"></p>
-                        <button id="submit-learner" type="submit" class="${getButtonClasses('bg-indigo-600', 'bg-indigo-700', 'bg-indigo-800', 'text-white')} w-full">
-                            Register Learner
-                        </button>
-                    </form>
-                </div>
-
-                <!-- Current Learners List -->
-                <div class="${getCardClasses('bg-white', 'border border-gray-200')}">
-                    <h2 id="current-learners-title" class="text-xl font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-600'} mb-4">Current Learners (Synced)</h2>
-                    <div id="learner-list" class="space-y-3">
-                        <!-- Learner list injected by renderManagementView() -->
-                    </div>
-                </div>
-            </section>
-
-            <!-- Settings View -->
-            <section id="settings-view" class="hidden space-y-6">
-                
-                <!-- Module/Language Selection -->
-                <div class="${getCardClasses('bg-white', 'border border-gray-200')} grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="module-select" class="block text-lg font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-gray-700'} mb-2">Learning Module</label>
-                        <select id="module-select" onchange="window.loadModule(this.value)" class="input-style block w-full border-gray-300 rounded-md shadow-sm p-3">
-                            <option value="literacy" id="module-literacy-label">Literacy Module (A-Z)</option>
-                            <option value="numeracy" id="module-numeracy-label">Numeracy Module (1-100)</option>
-                            <option value="life_skills" id="module-life_skills-label">Life Skills Module</option>
-                            <option value="vocabulary" id="module-vocabulary-label">Vocabulary Module (100 Words)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="language-select" class="block text-lg font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-gray-700'} mb-2">Language</label>
-                        <select id="language-select" onchange="window.setLanguage(this.value)" class="input-style block w-full border-gray-300 rounded-md shadow-sm p-3">
-                            <option value="english">English (US)</option>
-                            <option value="amharic">Amharic (አማርኛ)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Voice Settings -->
-                <div class="${getCardClasses('bg-white', 'border border-gray-200')}">
-                    <h2 id="voice-settings-title" class="text-xl font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-600'} mb-4">Voice Settings</h2>
-                    <div class="space-y-4">
-                        <div>
-                            <label id="select-voice-label" for="voice-select" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Select Voice</label>
-                            <select id="voice-select" onchange="window.applyVoiceSettings()" class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-3"></select>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label id="rate-label" for="voice-rate" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Speed (Rate) <span id="rate-display" class="font-mono ml-2">0.6</span></label>
-                                <input type="range" id="voice-rate" min="0.1" max="2.0" step="0.1" value="0.6" oninput="window.applyVoiceSettings()" class="mt-2 w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer">
-                            </div>
-                            <div>
-                                <label id="pitch-label" for="voice-pitch" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Pitch <span id="pitch-display" class="font-mono ml-2">1.0</span></label>
-                                <input type="range" id="voice-pitch" min="0.1" max="2.0" step="0.1" value="1.0" oninput="window.applyVoiceSettings()" class="mt-2 w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Accessibility Settings -->
-                <div class="${getCardClasses('bg-white', 'border border-gray-200')}">
-                    <h2 id="accessibility-title" class="text-xl font-bold ${appState.contrastMode === 'high_contrast' ? 'text-yellow-300' : 'text-indigo-600'} mb-4">Accessibility Settings</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label id="contrast-label" for="contrast-select" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Contrast Mode</label>
-                            <select id="contrast-select" onchange="window.applyTheme(this.value)" class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-3">
-                                <option value="normal" >Normal</option>
-                                <option value="high_contrast">High Contrast</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label id="text-size-label" for="text-size-select" class="block text-sm font-medium ${appState.contrastMode === 'high_contrast' ? 'text-white' : 'text-gray-700'}">Text Size</label>
-                            <select id="text-size-select" onchange="window.applyTextSize(this.value)" class="input-style mt-1 block w-full border-gray-300 rounded-md shadow-sm p-3">
-                                <option value="small">Small</option>
-                                <option value="medium">Medium</option>
-                                <option value="large">Large</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-    </div>
 </body>
 </html>
